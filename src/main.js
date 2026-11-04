@@ -22,6 +22,7 @@ import { mountExhibitionUI } from './exhibition-ui.js';
 import { createDataStream } from './data-stream.js';
 import { createDataProcess } from './data-process.js';
 import { createAutoExploration } from './auto-exploration.js';
+import { renderPixelRatio } from './graphics-support.js';
 mountExhibitionUI();
 const dataStream = createDataStream();
 const dataProcess = createDataProcess({ onChange: dataStream.process });
@@ -149,8 +150,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 2000);
 let renderer;
+const graphics = window.__ATLAS_GRAPHICS__;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer = new THREE.WebGLRenderer({
+    ...(graphics ? { canvas: graphics.canvas, context: graphics.context } : {}),
+    antialias: false, preserveDrawingBuffer: false,
+  });
   // Keep the canvas background at true black regardless of browser alpha or
   // compositing behavior; the only visible lift should come from the scene.
   renderer.setClearColor(0x000000, 1);
@@ -159,9 +164,14 @@ try {
   $('webgl-error').textContent = `WebGL unavailable: ${error.message}`;
   throw error;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.domElement.setAttribute('aria-label', 'Planetary boundary quantitative points and reference shells');
 $('scene').append(renderer.domElement);
+renderer.domElement.addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  $('webgl-error').hidden = false;
+  $('webgl-error').textContent = '그래픽 연결이 일시 중단됐습니다. 복구를 기다리거나 새로고침해 주세요.';
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => { $('webgl-error').hidden = true; });
 const orbit = new OrbitControls(camera, renderer.domElement);
 let soundInputActive = false;
 let soundInputUntil = 0;
@@ -1160,7 +1170,8 @@ renderer.domElement.addEventListener('dblclick', (event) => {
 
 let width = 1, height = 1;
 function resize() {
-  width = $('viewport').clientWidth; height = $('viewport').clientHeight;
+  width = Math.max(1, $('viewport').clientWidth); height = Math.max(1, $('viewport').clientHeight);
+  renderer.setPixelRatio(renderPixelRatio(width, height, window.devicePixelRatio, graphics?.legacy));
   renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe($('viewport'));
@@ -1327,6 +1338,7 @@ function updateProjectionReadout() {
 }
 
 window.__PB_DEBUG__ = {
+  graphics: () => ({ type: graphics?.type || 'webgl2', legacy: Boolean(graphics?.legacy), pixelRatio: renderer.getPixelRatio(), width: renderer.domElement.width, height: renderer.domElement.height, calls: renderer.info.render.calls }),
   navigation: () => ({ scope: selectionScope, boundaryAnchor: groupWorldTarget(selectedGroup).toArray(), fieldAnchor: climate.root.position.toArray() }),
   backgroundMotion: () => ({ starfieldAngle, systemRotationAngle }),
   motion: () => ({ overview, motionPaused, manualObservation, autoRotate: orbit.autoRotate, boundaryAngles: [...boundaryOrbitMotion].map(([id, motion]) => ({ id, angle: motion.angle })), orbitAngles: [...riskOrbits.values()].map((line) => line.userData.angle), reduced: reducedMotion.matches, focusing: !!focusTransition, projection: climate.projectionProgress, points: climate.positions.length }),
@@ -1486,6 +1498,8 @@ function updateFocusTransition(now) {
   }
 }
 renderer.setAnimationLoop((now) => {
+  if (document.hidden) { lastMotionTime = now; return; }
+  if (graphics?.legacy && lastMotionTime !== null && now - lastMotionTime < 1000 / 30 - 1) return;
   const frameElapsedMs = Math.max(0, now - (lastMotionTime ?? now));
   const dt = Math.min(.05, Math.max(0, (now - (lastMotionTime ?? now)) / 1000));
   lastMotionTime = now;

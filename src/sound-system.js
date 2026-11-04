@@ -2,7 +2,8 @@ import manifest from './signal-samples.generated.json';
 import { SOUND_CONFIG } from './sound-config.js';
 
 export function createSoundSystem(ambient, overrides = {}) {
-  const settings = structuredClone(SOUND_CONFIG);
+  // Configuration contains only JSON values; support Safari before 15.4.
+  const settings = JSON.parse(JSON.stringify(SOUND_CONFIG));
   for (const [key, value] of Object.entries(overrides)) settings[key] = typeof value === 'object' && !Array.isArray(value) ? { ...settings[key], ...value } : value;
   const controller = new AbortController();
   const samples = new Map(), buffers = new Map(), voices = new Set();
@@ -121,7 +122,7 @@ export function createSoundSystem(ambient, overrides = {}) {
     if (!sample || !enabled || disposed || suspended || context?.state !== 'running') return false;
     if (!settings.enabledFamilies.includes(sample.family)) return false;
     if (voices.size >= settings.maxVoices) return false;
-    const previous = history.at(-1);
+    const previous = history[history.length - 1];
     if (previous?.family === sample.family && now - lastOnset < settings.minOnsetGap) return false;
     if ([...voices].some(voice => voice.family === sample.family)) return false;
     const source = context.createBufferSource(), gain = context.createGain(), filter = context.createBiquadFilter();

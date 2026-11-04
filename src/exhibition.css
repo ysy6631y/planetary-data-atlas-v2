@@ -1,12 +1,13 @@
 /* V2 changes the information layout only. The canvas keeps the full viewport. */
-:root { --rail-width: 360px; --index-width: 244px; --edge: 28px; }
-main { height: 100dvh; min-height: 620px; }
+:root { --rail-width: 360px; --index-width: 244px; --edge: 28px; --viewport-height: 100vh; }
+@supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }
+main { height: var(--viewport-height); min-height: 620px; }
 header { left: var(--edge); right: var(--edge); height: 58px; }
 h1 { font-size: 13px; }
 #viewport { width: 100%; height: 100%; }
 #boundaries { top: 96px; left: var(--edge); width: var(--index-width); z-index: 22; }
 #index-trigger { display: none; }
-#boundaries .index-sheet { display: block; position: static; width: 100%; max-height: min(55vh, calc(100dvh - 448px)); padding: 0 8px 0 0; overflow: auto; border: 0; background: transparent; scrollbar-width: thin; scrollbar-color: #484a46 transparent; }
+#boundaries .index-sheet { display: block; position: static; width: 100%; max-height: min(55vh, calc(var(--viewport-height) - 448px)); padding: 0 8px 0 0; overflow: auto; border: 0; background: transparent; scrollbar-width: thin; scrollbar-color: #484a46 transparent; }
 .index-sheet > h2 { margin-bottom: 15px; color: #b9bbb8; font-size: 9px; letter-spacing: .04em; }
 .group { padding: 8px 0; border-top-color: rgba(255,255,255,.13); }
 .group-title { padding: 3px 0 5px; line-height: 1.35; font-size: 10px; }
@@ -68,3 +69,22 @@ h1 { font-size: 13px; }
 @media (max-height: 800px) { #data-stream { flex-basis: 160px; } #exhibition-rail { gap: 16px; } .group { padding: 6px 0; } }
 @media (max-width: 850px) { :root { --rail-width: 260px; --index-width: 168px; --edge: 14px; } h1 { font-size: 11px; } .stream-key { flex-direction: column; gap: 2px; margin-bottom: 6px; } .record-tools { grid-template-columns: 1fr; gap: 4px; } .climate-settings { gap: 8px; } .legend { gap: 8px; font-size: 7px; } .group-title { font-size: 8px; } .control { font-size: 7px; } }
 @media (max-width: 600px) { :root { --rail-width: 44vw; --index-width: 39vw; --edge: 12px; } header { height: 46px; } h1 { font-size: 10px; } .scene-top { top: 49px; right: 12px; } .observation-toolbar { top: 76px; right: 10px; gap: 2px; } .observation-toolbar button, .observation-toolbar #fit { font-size: 8px; width: auto; padding: 0 5px; } .legend { top: 111px; right: 10px; flex-wrap: wrap; max-width: 44vw; } #boundaries { top: 88px; } #exhibition-rail { top: 156px; bottom: 16px; gap: 14px; } #data-stream { flex-basis: 130px; } .stream-heading h2, .analysis-head .eyebrow { font-size: 8px; } .stream-line { grid-template-columns: 1fr; gap: 0; } .stream-sequence, .stream-type { display: none; } #stream-lines { font-size: 7px; } .stream-footer { font-size: 7px; } #stream-count { display: none; } .group-title { font-size: 8px; } .control { padding-left: 12px; font-size: 7px; } .group-title .number { min-width: 13px; } .scene-bottom { left: 12px; bottom: 16px; } .risk-scale i { font-size: 7px; } .risk-ruler strong { font-size: 8px; } .risk-source { font-size: 7px; } .observation-distance output { font-size: 18px; } .observation-distance > span { font-size: 7px; } #exhibition-rail #local-field { max-height: 32vh; } }
+
+/* Real records remain available when the GPU/driver disables WebGL entirely. */
+body.data-view { overflow: auto; }
+.data-view main { display: block; height: auto; min-height: 100vh; padding: 76px 28px 40px; }
+.data-view-content { max-width: 1200px; margin: auto; font: 13px/1.7 var(--mono); }
+.data-view-content > p { color: #c6c8c2; }
+.data-view-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 28px; margin-top: 32px; }
+.data-view-groups > section { min-width: 0; border-top: 1px solid #555; padding-top: 16px; }
+.data-view-groups h2 { font-size: 14px; color: #eee; }
+.data-view-groups p { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.data-view-groups strong { font-weight: 400; }
+.data-view-groups label { display: block; margin-top: 20px; }
+.data-view-content select { width: 100%; margin-top: 8px; }
+.data-view-content select, .data-view-content button { color: #eee; background: #111; border: 1px solid #666; padding: 8px; }
+.data-view-table { overflow: auto; max-height: 420px; }
+.data-view-table table { border-collapse: collapse; font-size: 11px; }
+.data-view-table td, .data-view-table th { padding: 6px 10px; border: 1px solid #444; text-align: left; white-space: nowrap; }
+.data-view-records { overflow-wrap: anywhere; }
+.data-view-pages { display: flex; gap: 10px; align-items: center; margin-top: 12px; }

@@ -14,6 +14,14 @@ const errors = [], failures = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('response', response => { if (response.status() >= 400) failures.push({ url: response.url(), status: response.status() }); });
 const screenshot = name => page.screenshot({ path: join(output, `${name}.png`) });
+if (process.env.ATLAS_FORCE_WEBGL1 === '1') await page.addInitScript(() => {
+  window.structuredClone = undefined;
+  Array.prototype.at = undefined;
+  const getContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+    return type === 'webgl2' ? null : getContext.call(this, type, ...args);
+  };
+});
 const settled = () => page.waitForFunction(() => !window.__PB_DEBUG__.motion().focusing && !document.getElementById('local-field').classList.contains('loading'));
 const bounds = () => page.evaluate(() => {
   const rect = id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
@@ -22,7 +30,8 @@ const bounds = () => page.evaluate(() => {
 try {
   const remote = execFileSync('git', ['-C', fileURLToPath(new URL('../', import.meta.url)), 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
   assert.equal(remote, 'https://github.com/ysy6631y/planetary-data-atlas-v2.git', 'V2 must use its own repository, never V1');
-  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layer.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'sound-system.js', 'sound-config.js', 'presence-detector.js']) {
+  // sound-system.js uses equivalent JSON cloning/indexing for Safari 14.
+  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layer.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'sound-config.js', 'presence-detector.js']) {
     const current = await readFile(new URL(`../src/${file}`, import.meta.url));
     const v1 = await readFile(join(process.env.V1_SOURCE || fileURLToPath(new URL('../../planetary-data-atlas-v1/', import.meta.url)), 'src', file));
     assert(current.equals(v1), `V2 must preserve V1 core: ${file}`);

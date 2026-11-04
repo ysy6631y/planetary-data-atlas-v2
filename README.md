@@ -29,8 +29,38 @@ npm run build
 npm run test:ui
 ```
 
-V2 uses the same locked dependencies except Vite's security patch from 8.3.2
-to 8.3.5. No new library was added. Production output is generated in `dist/`.
+Production output is generated in `dist/`. The build now includes a separate
+WebGL 1 renderer for older Safari; modern browsers keep Three.js 0.186.1.
+
+## Safari and older iMac compatibility
+
+The original deployment required WebGL 2 and used APIs unavailable in Safari
+14.1 (notably `structuredClone`, `Array.at`, and dynamic viewport height units).
+This stopped initialization before the 3D scene and index were ready.
+
+- JavaScript and CSS builds target Safari 14. A `100vh` fallback keeps the index
+  and scene height valid before dynamic viewport units were introduced.
+- A small bootstrap detects actual graphics capability, not browser names.
+  WebGL 2 uses the current engine; WebGL 1 loads an isolated Three.js r162 build
+  and matching controls/geometries from `dist/compat/`. Only one engine downloads.
+- The sound configuration uses equivalent JSON cloning and array indexing.
+- Render buffers are capped at 4 million pixels on WebGL 2 and 1.8 million on
+  WebGL 1. WebGL 1 renders at up to 30 fps. Hidden tabs skip animation work;
+  multisampling and persistent drawing buffers are disabled to reduce GPU memory.
+- If a graphics driver disables all WebGL, the site opens a data view containing
+  all nine boundary groups, actual risk values, and paginated original records.
+  It does not invent a 3D result on unsupported hardware.
+- Safari 14.1 is the compatibility target, not a claim that every historical
+  iMac/OS/GPU combination can render 3D. The capability fallback remains available
+  when 3D cannot start. Safari 14.1.3 hardware still needs an on-device check.
+
+After `npm run build`, run `npm run test:compat`. It serves the production build
+under a GitHub Pages-style subdirectory and checks WebGL 2, forced WebGL 1, and
+graphics-disabled data access with Safari 14's missing APIs removed.
+Set `ATLAS_WEBKIT_MODULE` to a compatible Playwright module path to include
+WebKit. `ATLAS_TEST_URL` can point at the deployed site.
+For Safari 14 local testing, use the production preview (`npm exec vite preview`)
+after building both renderers; the development server uses the modern engine.
 
 ## Interface
 
