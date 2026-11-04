@@ -89,7 +89,6 @@ export function createSoundSystem(ambient, overrides = {}) {
     flowBus.gain.value = settings.volumes.flow;
     detailBus.gain.value = settings.volumes.detail * (1 - settings.activity.detailDepth);
     limiter.connect(master).connect(context.destination);
-    void loadSamples();
   }
 
   function playAmbient() {
@@ -102,7 +101,11 @@ export function createSoundSystem(ambient, overrides = {}) {
   function unlock() {
     if (!enabled || disposed) return;
     ensureContext(); unlocked = true;
-    if (context && !document.hidden) context.resume().catch(error => report(error.message));
+    if (context && !document.hidden) context.resume().then(() => {
+      // Safari may keep resume pending until a real user gesture. Do not fetch
+      // or decode the sample bank while browser audio is still blocked.
+      if (!disposed && context.state === 'running') void loadSamples();
+    }).catch(error => report(error.message));
     playAmbient();
   }
 

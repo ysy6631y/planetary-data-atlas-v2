@@ -8,6 +8,19 @@ export default defineConfig(({ mode }) => {
     // Keep current Three.js for modern browsers; r162 also supports WebGL 1.
     resolve: compatibility ? { alias: [{ find: /^three(?=\/|$)/, replacement: 'three-webgl1' }] } : undefined,
     publicDir: compatibility ? false : 'public',
+    plugins: [{
+      name: 'same-origin-module-compatibility',
+      transformIndexHtml: {
+        order: 'post',
+        handler: html => html.replace(/<script\b[^>]*>/g, tag => {
+          const url = tag.match(/\bsrc=["']([^"']+)["']/)?.[1];
+          // All local assets use same-origin requests. The redundant CORS-mode
+          // module request crashes the older WebKit test runtime.
+          return url && !/^(?:[a-z]+:)?\/\//i.test(url)
+            ? tag.replace(/\s+crossorigin(?:=["'][^"']*["'])?/g, '') : tag;
+        }),
+      },
+    }],
     build: {
       target: 'safari14',
       cssTarget: 'safari14',

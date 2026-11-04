@@ -44,6 +44,10 @@ This stopped initialization before the 3D scene and index were ready.
   WebGL 2 uses the current engine; WebGL 1 loads an isolated Three.js r162 build
   and matching controls/geometries from `dist/compat/`. Only one engine downloads.
 - The sound configuration uses equivalent JSON cloning and array indexing.
+- Same-origin entry scripts omit the redundant `crossorigin` attribute; the
+  older WebKit test runtime crashed when loading a module entry with that flag.
+- The ambient WAV is not preloaded. Sample-bank fetching/decoding waits until
+  the browser actually resumes its audio context.
 - Render buffers are capped at 4 million pixels on WebGL 2 and 1.8 million on
   WebGL 1. WebGL 1 renders at up to 30 fps. Hidden tabs skip animation work;
   multisampling and persistent drawing buffers are disabled to reduce GPU memory.

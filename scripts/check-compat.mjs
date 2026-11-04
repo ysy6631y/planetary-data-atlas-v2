@@ -7,6 +7,8 @@ import { chromium, webkit } from 'playwright';
 
 // Serve the production build below a project path, just like GitHub Pages.
 const root = resolve('dist');
+assert(!/<script\b[^>]*\bcrossorigin/.test(await readFile(join(root, 'index.html'), 'utf8')),
+  'Same-origin entry scripts must not require CORS-mode module loading on older WebKit');
 const prefix = '/planetary-data-atlas-v2/';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wav': 'audio/wav', '.woff': 'font/woff', '.woff2': 'font/woff2' };
 const server = createServer(async (request, response) => {
