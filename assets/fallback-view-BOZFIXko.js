@@ -1,0 +1,10 @@
+import{i as e,n as t,r as n,t as r}from"./atlas-data-tvN1jB7D.js";var i=e=>String(e??``).replace(/[&<>"']/g,e=>({"&":`&amp;`,"<":`&lt;`,">":`&gt;`,'"':`&quot;`,"'":`&#39;`})[e]);function a(a){let o=t(e);document.body.classList.add(`data-view`);let s=document.querySelector(`main`);s.innerHTML=`<section class="data-view-content"><p role="status">${i(a)}</p>
+    <button id="retry-graphics" type="button">3D 다시 시도</button>
+    <div class="data-view-groups">${o.map(e=>`<section><h2>${i(e.name)}</h2>
+      ${e.controls.map(e=>`<p><strong>${i(e.raw.label||e.id)}</strong>
+        <span>${e.r===null?`NOT QUANTIFIED`:`R / `+e.r.toFixed(4)}</span></p>`).join(``)}
+      <label>DATA <select data-boundary="${i(e.id)}"><option value="">데이터 선택</option>${n.datasets.filter(t=>t.boundaries.includes(e.id)).map(e=>`<option value="${i(e.id)}">${i(e.title)}</option>`).join(``)}</select></label>
+      <div class="data-view-records" aria-live="polite"></div></section>`).join(``)}</div></section>`,document.getElementById(`retry-graphics`).onclick=()=>location.reload();for(let e of s.querySelectorAll(`select`)){let t=0;e.onchange=async()=>{let a=++t,o=e.closest(`section`).querySelector(`.data-view-records`);if(!e.value)o.textContent=``;else{o.textContent=`READING DATA…`;try{let s=n.datasets.find(t=>t.id===e.value),c=await r(s);if(a!==t)return;let l=0,u=()=>{let e=l*50;o.innerHTML=`<p>${c.records.length} ROWS · ${i(c.source)}</p><div class="data-view-table"><table>
+            <thead><tr>${s.columns.map(e=>`<th>${i(e)}</th>`).join(``)}</tr></thead>
+            <tbody>${c.records.slice(e,e+50).map(e=>`<tr>${e.raw.map(e=>`<td>${i(e)}</td>`).join(``)}</tr>`).join(``)}</tbody></table></div>
+            <div class="data-view-pages"><button data-page="-1" ${l===0?`disabled`:``}>이전</button><span>${e+1}–${Math.min(e+50,c.records.length)} / ${c.records.length}</span><button data-page="1" ${e+50>=c.records.length?`disabled`:``}>다음</button></div>`,o.querySelectorAll(`[data-page]`).forEach(e=>{e.onclick=()=>{l+=Number(e.dataset.page),u()}})};u()}catch{a===t&&(o.textContent=`데이터를 불러오지 못했습니다. 다시 선택해 주세요.`)}}}}}export{a as showDataView};
