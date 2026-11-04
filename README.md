@@ -11,7 +11,7 @@ into V1. Dependency folders, builds and local validation captures are ignored.
 - Source: https://github.com/ysy6631y/Planetary-Boundaries-Data-Atlas
 - Site: https://ysy6631y.github.io/Planetary-Boundaries-Data-Atlas/
 - Source tag: `v1.0.0`; source commit: `2745657`; Pages commit: `076b63b`.
-- V1 remains in `/Users/pc/Desktop/무제 폴더 5`. Its source and deployment are preserved.
+- V1 is in the sibling folder `../planetary-data-atlas-v1`. Its source and deployment are preserved.
 
 ## Run V2
 

@@ -24,7 +24,7 @@ try {
   assert.equal(remote, 'https://github.com/ysy6631y/planetary-data-atlas-v2.git', 'V2 must use its own repository, never V1');
   for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layer.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'sound-system.js', 'sound-config.js', 'presence-detector.js']) {
     const current = await readFile(new URL(`../src/${file}`, import.meta.url));
-    const v1 = await readFile(join(process.env.V1_SOURCE || '/Users/pc/Desktop/무제 폴더 5', 'src', file));
+    const v1 = await readFile(join(process.env.V1_SOURCE || fileURLToPath(new URL('../../planetary-data-atlas-v1/', import.meta.url)), 'src', file));
     assert(current.equals(v1), `V2 must preserve V1 core: ${file}`);
   }
   await page.goto(origin);
