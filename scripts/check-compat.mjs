@@ -33,6 +33,7 @@ try {
     const webkitDriver = process.env.ATLAS_WEBKIT_MODULE ? (await import(process.env.ATLAS_WEBKIT_MODULE)).webkit : webkit;
     browser = await (engine === 'webkit' ? webkitDriver.launch({ headless: true, executablePath: process.env.ATLAS_WEBKIT_EXECUTABLE, timeout: 30000 }) : chromium.launch({ channel: 'chrome', headless: true }));
     for (const mode of ['webgl2', 'webgl1', 'no-webgl']) {
+      console.log(`Checking graphics: ${engine} / ${mode}`);
       const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 2 });
       const errors = [], failures = [], requests = [];
       page.on('pageerror', error => errors.push(error.message));
@@ -40,6 +41,7 @@ try {
       page.on('response', response => { if (response.status() >= 400) failures.push(`${response.status()} ${response.url()}`); });
       page.on('request', request => requests.push(request.url()));
       await page.addInitScript(mode => {
+        navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Camera denied for graphics check', 'NotAllowedError'));
         // Remove APIs absent in Safari 14; a user-agent string alone does not
         // reproduce its missing WebGL 2 or JavaScript APIs.
         window.structuredClone = undefined;
@@ -64,7 +66,9 @@ try {
         await page.locator('[data-page="1"]').click();
         assert.notEqual(await page.locator('.data-view-table tbody tr').first().textContent(), first);
       } else {
-        await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready, null, { timeout: 60000 });
+        await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready, null, { timeout: 60000 }).catch(async error => {
+          console.log(JSON.stringify({ engine, mode, errors, failures, state: await page.evaluate(() => ({ text: document.body.innerText.slice(0, 1800), graphics: window.__PB_DEBUG__?.graphics(), overview: window.__PB_DEBUG__?.overview() })) })); throw error;
+        });
         await page.locator('[data-control="co2"]').click();
         await page.waitForFunction(() => !window.__PB_DEBUG__.motion().focusing && !document.getElementById('local-field').classList.contains('loading'), null, { timeout: 60000 });
         assert.equal(await page.locator('#analysis-kind').textContent(), 'PLANETARY REFERENCE');

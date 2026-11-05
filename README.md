@@ -23,8 +23,9 @@ npm run dev
 Open http://127.0.0.1:5174/ . The port is strict and binds to loopback.
 V1 can run independently at 5173. Node 22.12+ is required by Vite.
 
-The public site and laptop preview both use the same fixed 2560×1440 stage,
-scaled to fit the physical window without changing menu spacing or camera framing.
+The public site uses a 2560px-wide stage scaled to the browser width, with its
+height matching the browser area. This avoids side gutters when Safari's toolbar
+reduces the available height. The comparison preview retains 2560×1440 framing.
 The public stage has no preview toolbar. `?preview=exhibition` adds preview tools;
 `?layout=window` opens the optional responsive layout. Internal browser checks use
 `?stage=content`. The render buffer follows the physical stage scale to avoid
@@ -191,20 +192,35 @@ For the 27-inch before/after capture workflow, serve the production build at
 and performance/geometry diagnostics in `validation/exhibition-27/` (ignored by
 Git). `ATLAS_FORCE_WEBGL1=1` also runs the complete UI check on the legacy path.
 
-Header/title/operator commands fade after 2.4 seconds without pointer or keyboard input and return on activity. Source changes preserve the existing scrolling history. Red trace markers identify actual planetary-reference R > 1; raw source rows are never given an inferred risk threshold.
+Header/title/operator commands remain visible. Source changes preserve the existing scrolling history. Red trace markers identify actual planetary-reference R > 1; raw source rows are never given an inferred risk threshold.
 
 With the production preview running at 4174, `npm run test:exhibition` checks
-the 27-inch composition, data-centered 4.8-unit zoom, header hide/reveal, source
+the 27-inch composition, data-centered 4.8-unit zoom, persistent header, source
 history retention, real exceeded-reference markers, camera-denied manual sound,
 the presence gate, decoded audio signal and 45-second idle return. Set
 `ATLAS_WEBKIT_MODULE` to include the legacy WebGL 1 WebKit case. Reports and
 screenshots go to `validation/exhibition-simulation/`.
 
-The boundary menu is compact and fits without scrolling at the fixed stage size.
-The data stream uses 17px rows; stars increase to 2400 with subtle pointer parallax.
+The boundary menu follows the supplied preview spacing and fits without scrolling.
+The data stream uses 25px stage rows; stars increase to 2400 with subtle pointer parallax.
 The persistent bottom status reports camera detection, face-width ratio, near/far
 state and actual audio playback/blocking. The operator can click “오디오 허용” to
 activate Safari audio while keeping AUTO mode. Camera entry uses 10% face width
 (previously 16%), with 7.5% exit hysteresis; this is not a calibrated distance.
 `node scripts/check-installation.mjs` checks the public iframe at four physical
 window sizes and feeds controlled worker results through the camera/audio gate.
+
+Safari 14 uses a bundled Pico CPU face classifier on a 320×240 regular 2D canvas,
+sampled every 240ms. It does not require worker canvases, WebGL 2, WASM or SIMD.
+Newer browsers retain the MediaPipe worker and fall back to Pico on engine errors.
+Both classifiers process camera frames locally. Vendored Pico code/model and MIT
+licenses are under `public/presence/`. `node scripts/check-camera-engine.mjs`
+reproduces the old worker failure without OffscreenCanvas and checks actual
+portrait/blank classification through capture and presence hysteresis. Its camera
+transport is substituted; it does not certify the physical iMac camera or speakers.
+
+Focus transitions and manual zoom-in trigger a short mix of existing 665957
+transmission and 511418 reveal fragments. They also work in manual Ambient mode;
+autonomous effects remain AUTO-only. Cues expire instead of accumulating, use at
+most two voices, and respect MUTE and page visibility. The sound browser check
+exercises the cue mix with a denied camera and rapid repeated input.

@@ -10,7 +10,11 @@ export function mountExhibitionPreview() {
   const preview = url.searchParams.get('preview') === 'exhibition';
   url.searchParams.delete('preview');
   url.searchParams.set('stage', 'content');
-  url.searchParams.set('stageScale', String(Math.min(1, innerWidth / WIDTH, Math.max(1, innerHeight - (preview ? 44 : 0)) / HEIGHT)));
+  url.searchParams.set('stageScale', String(Math.min(1, innerWidth / WIDTH)));
+  // Fill the actual browser area. Fitting a 16:9 rectangle by height added
+  // large side gutters on the iMac when Safari's chrome reduced its height.
+  const stageHeight = () => preview ? HEIGHT : Math.max(900, Math.round(innerHeight * WIDTH / Math.max(1, innerWidth)));
+  url.searchParams.set('stageHeight', String(stageHeight()));
   const frame = document.createElement('iframe');
   frame.id = 'exhibition-preview-frame';
   frame.title = '2560 × 1440 전시 화면';
@@ -25,11 +29,12 @@ export function mountExhibitionPreview() {
   const resize = () => {
     const toolbarHeight = preview ? 44 : 0;
     const availableHeight = Math.max(1, innerHeight - toolbarHeight);
-    const scale = Math.min(innerWidth / WIDTH, availableHeight / HEIGHT);
-    frame.style.width = `${WIDTH}px`; frame.style.height = `${HEIGHT}px`;
+    const logicalHeight = stageHeight();
+    const scale = preview ? Math.min(innerWidth / WIDTH, availableHeight / HEIGHT) : innerWidth / WIDTH;
+    frame.style.width = `${WIDTH}px`; frame.style.height = `${logicalHeight}px`;
     frame.style.transform = `scale(${scale})`;
     frame.style.left = `${(innerWidth - WIDTH * scale) / 2}px`;
-    frame.style.top = `${toolbarHeight + (availableHeight - HEIGHT * scale) / 2}px`;
+    frame.style.top = `${toolbarHeight + Math.max(0, (availableHeight - logicalHeight * scale) / 2)}px`;
     frame.contentWindow?.postMessage({ type: 'atlas-stage-scale', scale: Math.min(1, scale) }, location.origin);
     tools.querySelector('output').textContent = ` / ${Math.round(scale * 100)}%`;
   };

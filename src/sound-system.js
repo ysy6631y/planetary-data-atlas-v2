@@ -21,6 +21,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   let nearCount = 0, lastGlitch = -Infinity;
   let lastOnset = -Infinity, lastFlowEnd = -Infinity;
   let activity = 0, windowActivity = 0, peakVoices = 0, lastDetailGain = -1;
+  let observation = null, lastObservation = -Infinity;
   const range = ([min, max]) => min + Math.random() * (max - min);
   const seconds = () => performance.now() / 1000;
   const report = message => { if (!errors.includes(message)) { errors.push(message); console.warn('[audio] ' + message); } };
@@ -30,7 +31,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   ambient.volume = 0;
   const audible = () => enabled && !suspended && !disposed && (mode === 'ambient' || present);
   const mediaVolume = () => audible() ? (mode === 'ambient' ? settings.manualAmbientVolume : settings.volumes.ambient) : 0;
-  const effectsGain = () => audible() && mode === 'auto' ? 1 : 0;
+  const effectsGain = () => audible() ? 1 : 0;
   const notify = () => listeners.forEach(listener => listener(snapshot()));
 
   function finishSilence() {
@@ -192,9 +193,10 @@ export function createSoundSystem(ambient, overrides = {}) {
     return bounds[0] + (bounds[1] - bounds[0]) * activity;
   }
 
-  function playSample(sample, gainScale = 1, now = seconds(), trigger = 'autonomous') {
-    if (!sample || !enabled || disposed || suspended || mode !== 'auto' || !present || context?.state !== 'running') return false;
-    if (!settings.enabledFamilies.includes(sample.family)) return false;
+  function playSample(sample, gainScale = 1, now = seconds(), trigger = 'autonomous', cue = {}) {
+    if (!sample || !audible() || context?.state !== 'running') return false;
+    if (trigger !== 'zoom' && (mode !== 'auto' || !present)) return false;
+    if (trigger !== 'zoom' && !settings.enabledFamilies.includes(sample.family)) return false;
     if (voices.size >= settings.maxVoices) return false;
     const previous = history[history.length - 1];
     if (previous?.family === sample.family && now - lastOnset < settings.minOnsetGap) return false;
@@ -202,11 +204,13 @@ export function createSoundSystem(ambient, overrides = {}) {
     const source = context.createBufferSource(), gain = context.createGain(), filter = context.createBiquadFilter();
     source.buffer = buffers.get(sample.id);
     filter.type = 'lowpass'; filter.Q.value = .5;
-    const targetCutoff = cutoffFor(sample.family);
+    const targetCutoff = cue.cutoff || cutoffFor(sample.family);
     filter.frequency.value = targetCutoff;
-    const start = context.currentTime;
-    const duration = Math.min(source.buffer.duration, range(settings.fragments[sample.family] || [source.buffer.duration, source.buffer.duration]));
-    const offset = range([0, Math.max(0, source.buffer.duration - duration)]);
+    const start = context.currentTime + (cue.delay || 0);
+    source.playbackRate.value = cue.rate || 1;
+    const excerpt = Math.min(source.buffer.duration, cue.duration || range(settings.fragments[sample.family] || [source.buffer.duration, source.buffer.duration]));
+    const duration = excerpt / source.playbackRate.value;
+    const offset = range([0, Math.max(0, source.buffer.duration - excerpt)]);
     const level = gainScale * range(sample.family === 'detail' ? [.88, 1.06] : sample.family === 'micro' ? [.9, 1.05] : [.58, 1.02]);
     const attack = Math.min(sample.family === 'micro' ? .004 : .015, duration * .15);
     const release = Math.min(sample.family === 'micro' ? .012 : .045, duration * .25);
@@ -219,7 +223,7 @@ export function createSoundSystem(ambient, overrides = {}) {
       tailAt: start + duration - range(settings.micro.tailLead), endAt: start + duration, tailChecked: false };
     voices.add(voice); peakVoices = Math.max(peakVoices, voices.size);
     source.onended = () => { source.disconnect(); gain.disconnect(); filter.disconnect(); voices.delete(voice); };
-    source.start(start, offset, duration); lastOnset = now;
+    source.start(start, offset, excerpt); lastOnset = now;
     if (sample.family === 'micro') lastGlitch = now;
     if (sample.family === settings.primaryFamily) lastFlowEnd = now + duration;
     previousSamples.set(sample.family, sample.id);
@@ -247,6 +251,16 @@ export function createSoundSystem(ambient, overrides = {}) {
   function update(nowMs, dt, inputSpeed = 0) {
     const now = nowMs / 1000;
     if (disposed || !enabled || suspended) return;
+    if (observation && now > observation.expires) observation = null;
+    if (observation && audible() && context?.state === 'running' && samples.size === manifest.samples.length && voices.size === 0) {
+      const strength = observation.strength;
+      const acquired = playSample(choose('flow'), .38 + strength * .12, now, 'zoom', { duration: .3 + strength * .12, cutoff: 4700, rate: range([.94, 1.04]) });
+      if (acquired) {
+        playSample(choose('detail'), .5 + strength * .12, now, 'zoom', { delay: .08, duration: .24 + strength * .09, cutoff: 6200 });
+        lastObservation = now; observation = null;
+        nextFlow = Math.max(nextFlow, now + .9); nextDetail = Math.max(nextDetail, now + .9);
+      }
+    }
     if (mode !== 'auto' || !present) return;
     updateActivity(now, dt, inputSpeed);
     if (context?.state !== 'running' || !samples.size) return;
@@ -294,7 +308,7 @@ export function createSoundSystem(ambient, overrides = {}) {
     ambient.muted = !enabled;
     if (changed) { clearActivity(); wasRunning = false; }
     fadeToMode(!enabled);
-    if (!enabled) { stopVoices(); ambient.pause(); }
+    if (!enabled) { observation = null; stopVoices(); ambient.pause(); }
     else unlock(event);
     notify();
   }
@@ -375,6 +389,12 @@ export function createSoundSystem(ambient, overrides = {}) {
     };
   }
   function subscribe(listener) { listeners.add(listener); listener(snapshot()); return () => listeners.delete(listener); }
+  function observe(strength = .5) {
+    const now = seconds();
+    if (!audible() || now - lastObservation < .8) return;
+    // Keep just the latest camera acquisition; never queue a chorus of clicks.
+    observation = { strength: Math.max(0, Math.min(1, strength)), expires: now + 1.2 };
+  }
   function dispose() {
     if (disposed) return;
     disposed = true; controller.abort(); cancelAnimationFrame(fadeFrame); clearTimeout(recoveryTimer); stopVoices(); clearActivity(); ambient.pause();
@@ -390,7 +410,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   document.addEventListener('visibilitychange', visibilityChanged); ambient.addEventListener('error', ambientError);
   mediaEvents.forEach(type => ambient.addEventListener(type, mediaChanged));
   return {
-    update, setEnabled, setMode, setVolumes, setAmbientVolume, setPresence, unlock, dispose, subscribe, snapshot,
+    update, observe, setEnabled, setMode, setVolumes, setAmbientVolume, setPresence, unlock, dispose, subscribe, snapshot,
     ready: () => loading || Promise.resolve(),
     audition: id => playSample(samples.get(id)),
   };

@@ -12,6 +12,8 @@ async function dataView(reason) {
 
 async function start() {
   if (mountExhibitionPreview()) return;
+  const alignLayout = () => document.documentElement.style.setProperty('--layout-y', String(Math.min(1.2, Math.max(.65, innerHeight / 1440))));
+  alignLayout(); window.addEventListener('resize', alignLayout);
   // Operator audio stays available even if graphics startup falls back to tables.
   mountSoundOperator();
   installIdleHeader();

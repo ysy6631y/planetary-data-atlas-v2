@@ -9,7 +9,7 @@ self.onmessage = async ({ data }) => {
       const vision = await FilesetResolver.forVisionTasks(data.wasm);
       detector = await FaceDetector.createFromOptions(vision, {
         baseOptions: { modelAssetPath: data.model, delegate: 'CPU' },
-        runningMode: 'VIDEO', minDetectionConfidence: .65,
+        runningMode: 'VIDEO', minDetectionConfidence: .5,
       });
       self.postMessage({ type: 'ready' });
     } else if (data.type === 'frame') {

@@ -37,7 +37,7 @@ for (const [engine, driver, options] of engines) {
     await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready && !window.__PB_DEBUG__.motion().focusing);
     await page.mouse.move(760, 100);
     await page.waitForTimeout(2800);
-    assert(await page.evaluate(() => document.body.classList.contains('header-idle')));
+    assert.equal(await page.evaluate(() => document.body.classList.contains('header-idle')), false);
     const overview = await page.evaluate(() => ({
       origin: window.__PB_DEBUG__.observation().originProjection.screen,
       distance: window.__PB_DEBUG__.snapshot().camera.position.reduce((sum, n) => sum + n * n, 0) ** .5,
@@ -118,7 +118,7 @@ for (const [engine, driver, options] of engines) {
     await page.keyboard.press('0');
     assert.equal(await page.evaluate(() => window.__PB_AUDIO__.snapshot().ambientMuted), true);
     assert.deepEqual(errors, []); assert.deepEqual(failures, []);
-    reports.push({ engine, cameraDenied: true, overview, zoom, soundRms: rms, presenceGate: true, historyPreserved: true, headerHideAndReveal: true, checkpoints, errors, failures });
+    reports.push({ engine, cameraDenied: true, overview, zoom, soundRms: rms, presenceGate: true, historyPreserved: true, persistentHeader: true, checkpoints, errors, failures });
     await writeFile(`${output}/report.json`, JSON.stringify(reports, null, 2));
     console.log(`Passed exhibition simulation: ${engine}`);
   } catch (error) {

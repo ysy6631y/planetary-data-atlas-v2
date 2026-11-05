@@ -1026,6 +1026,7 @@ function focusGroup(group) {
   focusAt(target, Math.max(3.2, ...points.map((point) => point.distanceTo(target) * 3.2)));
 }
 function focusAt(target, distance = 2.5) {
+  sound.observe(Math.min(1, Math.max(.2, Math.log(Math.max(1, orbit.getDistance() / distance)))));
   setActiveTool('focus');
   orbit.enableDamping = false;
   orbit.update();
@@ -1570,6 +1571,7 @@ renderer.setAnimationLoop((now) => {
   dataStream.update(now, focusTransition ? 'camera' : climate.active && climate.projectionProgress < 1 ? 'projection' : overview ? 'orbit' : 'observation', EXHIBITION_MOTION_SPEED);
   exploration.tick(frameElapsedMs, { visible: !document.hidden, interacting: heldPointers.size > 0 || heldKeys.size > 0 });
   const soundDistance = Math.max(.001, orbit.getDistance());
+  if (!focusTransition && soundDistance < soundPreviousDistance * .997 && (soundInputActive || now < soundInputUntil)) sound.observe(.35);
   // Restore the original camera-to-observation-target distance independently
   // of the selected source risk score, reusing the frame's existing reading.
   const viewDistanceText = soundDistance.toFixed(3);

@@ -21,7 +21,7 @@ export function mountSoundOperator() {
   </div>`;
   document.body.append(panel);
   const monitor = document.createElement('div'); monitor.id = 'exhibition-status';
-  monitor.innerHTML = '<span id="camera-monitor">CAM 준비 중</span><span id="audio-monitor">AUTO · 대기</span><button type="button" id="audio-activate">오디오 허용</button><span>1 AMBIENT · 0 MUTE</span>';
+  monitor.innerHTML = '<span id="camera-monitor">CAM 준비 중</span><button type="button" id="camera-retry" hidden>카메라 재시도</button><span id="audio-monitor">AUTO · 대기</span><button type="button" id="audio-activate">오디오 허용</button><span>1 AMBIENT · 0 MUTE</span>';
   document.body.append(monitor);
   let cameraState = { phase: 'starting', ratio: 0, near: false };
   const renderMonitor = (state = sound.snapshot()) => {
@@ -36,9 +36,11 @@ export function mountSoundOperator() {
     const setText = (selector, value) => { const node = monitor.querySelector(selector); if (node.textContent !== value) node.textContent = value; };
     setText('#camera-monitor', camera); setText('#audio-monitor', audio);
     monitor.dataset.playing = String(playing); monitor.dataset.blocked = String(blocked);
-    monitor.querySelector('button').hidden = playing;
+    monitor.querySelector('#audio-activate').hidden = playing;
+    monitor.querySelector('#camera-retry').hidden = cameraState.phase !== 'off';
+    monitor.querySelector('#camera-monitor').title = `${cameraState.message || ''}${cameraState.lastError ? ' / ' + cameraState.lastError : ''}`;
   };
-  monitor.querySelector('button').onclick = event => sound.snapshot().enabled ? sound.unlock(event) : sound.setMode('ambient', event);
+  monitor.querySelector('#audio-activate').onclick = event => sound.snapshot().enabled ? sound.unlock(event) : sound.setMode('ambient', event);
   const cameraControls = document.querySelector('.presence-controls');
   cameraControls.hidden = false;
   panel.querySelector('.sound-operator-body').append(cameraControls);
@@ -78,6 +80,7 @@ export function mountSoundOperator() {
   });
   const presence = createPresenceDetector({ button: document.getElementById('presence-start'), status: document.getElementById('presence-status'), sound,
     onState(state) { cameraState = state; renderMonitor(); } });
+  monitor.querySelector('#camera-retry').onclick = event => { sound.unlock(event); void presence.start(); };
   const monitorTimer = setInterval(renderMonitor, 500);
   window.__PB_AUDIO__ = sound;
   const operator = { sound, presence, dispose() {

@@ -72,20 +72,26 @@ for (const [engine, driver, options] of engines) {
     await frame.locator('#camera-monitor').click();
     await page.keyboard.press('1');
     await frame.waitForFunction(() => window.__PB_AUDIO__.snapshot().mode === 'ambient' && !window.__PB_AUDIO__.snapshot().ambientPaused);
-    await frame.waitForFunction(() => document.body.classList.contains('header-idle'));
+    await page.waitForTimeout(2800);
+    assert.equal(await frame.evaluate(() => document.body.classList.contains('header-idle')), false);
     assert(await frame.locator('#exhibition-status').isVisible());
     const layouts = [];
     for (const [width, height] of [[2560,1440], [2560,1320], [1920,1080], [1440,900]]) {
       await page.setViewportSize({ width, height });
+      await frame.waitForFunction(expected => Math.abs(innerHeight - expected) <= 1, Math.round(height * 2560 / width));
+      await frame.waitForFunction(() => Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--layout-y')) - Math.min(1.2, Math.max(.65, innerHeight / 1440))) < .002);
+      const bounds = await page.locator('#exhibition-preview-frame').boundingBox();
+      assert(Math.abs(bounds.x) < 1, JSON.stringify(bounds));
+      assert(Math.abs(bounds.width - width) < 1, JSON.stringify(bounds));
       const layout = await frame.evaluate(() => {
         const sheet = document.querySelector('.index-sheet'), group = document.querySelector('#group-list');
-        return { width: innerWidth, height: innerHeight, sheetHeight: sheet.clientHeight, sheetScroll: sheet.scrollHeight,
+        return { width: innerWidth, height: innerHeight, sheetHeight: sheet.clientHeight, sheetScroll: sheet.scrollHeight, navLeft: document.getElementById('boundaries').getBoundingClientRect().left,
           menuBottom: group.getBoundingClientRect().bottom, gaugeTop: document.querySelector('.scene-bottom').getBoundingClientRect().top,
           lineHeight: document.querySelector('.stream-line').offsetHeight, stars: window.__PB_DEBUG__.backgroundMotion().stars };
       });
-      assert.equal(layout.width, 2560); assert.equal(layout.height, 1440);
+      assert.equal(layout.navLeft, 32); assert.equal(layout.width, 2560); assert(Math.abs(layout.height - height * 2560 / width) <= 1);
       assert(layout.sheetScroll <= layout.sheetHeight + 1); assert(layout.menuBottom < layout.gaugeTop, JSON.stringify(layout));
-      assert.equal(layout.lineHeight, 17); assert.equal(layout.stars, 2400);
+      assert.equal(layout.lineHeight, 25); assert.equal(layout.stars, 2400);
       layouts.push({ physical: [width, height], ...layout });
     }
     await page.screenshot({ path: `${output}/${engine}-laptop.png`, scale: 'css' });

@@ -77,6 +77,18 @@ try {
       assert.equal(manual.mode, 'ambient'); assert.equal(manual.manualAmbientVolume, .15);
       assert.equal(manual.present, false); assert.equal(manual.voices, 0);
       assert.equal(await page.locator('audio').count(), 1);
+      if (variant !== 'no-webgl-no-audiocontext') {
+        await page.waitForFunction(() => window.__PB_AUDIO__.snapshot().loaded === window.__PB_AUDIO__.snapshot().expected);
+        await page.locator('[data-control="co2"]').click();
+        await page.waitForFunction(() => window.__PB_AUDIO__.snapshot().history.filter(entry => entry.trigger === 'zoom').length === 2);
+        const cues = (await state()).history.filter(entry => entry.trigger === 'zoom');
+        assert.deepEqual(cues.map(cue => cue.family), ['flow', 'detail']);
+        assert(cues.every(cue => cue.duration <= .43 && cue.level < .7));
+        await page.evaluate(() => { for (let i = 0; i < 20; i++) window.__PB_AUDIO__.observe(); });
+        await page.waitForTimeout(450);
+        assert.equal((await state()).history.filter(entry => entry.trigger === 'zoom').length, 2, 'Repeated zooms must not stack voices');
+        assert((await state()).peakVoices <= 2);
+      }
       let calls = await page.evaluate(() => window.__audioCalls);
       assert(calls.play.some(call => call.key), 'HTML audio play must be called inside the key event');
       if (variant !== 'no-webgl-no-audiocontext') assert(calls.resume.some(call => call.key), 'AudioContext resume must be called inside the key event');
