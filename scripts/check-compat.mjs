@@ -1,3 +1,4 @@
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile, mkdtemp } from 'node:fs/promises';
@@ -50,7 +51,7 @@ try {
           return original.call(this, type, ...args);
         };
       }, mode);
-      await page.goto(origin, { waitUntil: 'domcontentloaded' });
+      await page.goto(contentUrl(origin), { waitUntil: 'domcontentloaded' });
       if (mode === 'no-webgl') {
         await page.waitForSelector('.data-view-groups');
         assert.equal(await page.locator('.data-view-groups > section').count(), 9);
@@ -71,7 +72,7 @@ try {
         assert.equal(graphics.legacy, mode === 'webgl1');
         assert(graphics.calls > 0, 'GPU submitted actual draw calls');
         assert(graphics.width * graphics.height <= 16000000 + 1);
-        assert(graphics.strokes.minimumWidth >= 1.1);
+        assert(graphics.strokes.minimumWidth >= 1);
         assert(graphics.strokes.paths > 30);
         assert.equal(requests.some(url => url.includes('/compat/app.js')), mode === 'webgl1');
         // Exercise actual source picking, controls, and the extent geometry.

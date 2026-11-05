@@ -1,3 +1,4 @@
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
@@ -32,12 +33,12 @@ try {
   assert.equal(remote, 'https://github.com/ysy6631y/planetary-data-atlas-v2.git', 'V2 must use its own repository, never V1');
   // Sound compatibility and the climate-layer point presentation are deliberate
   // changes; the underlying data, spatial model, and exploration controller stay intact.
-  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'presence-detector.js']) {
+  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js']) {
     const current = await readFile(new URL(`../src/${file}`, import.meta.url));
     const v1 = await readFile(join(process.env.V1_SOURCE || fileURLToPath(new URL('../../planetary-data-atlas-v1/', import.meta.url)), 'src', file));
     assert(current.equals(v1), `V2 must preserve V1 core: ${file}`);
   }
-  await page.goto(origin);
+  await page.goto(contentUrl(origin));
   await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready);
   assert.equal(await page.locator('.group-title').count(), 9);
   assert.equal(await page.locator('.control').count(), 13);

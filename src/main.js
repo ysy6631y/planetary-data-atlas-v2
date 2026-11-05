@@ -370,12 +370,13 @@ scene.add(referencePlane);
 const starGeometry = new THREE.BufferGeometry();
 const starPositions = [];
 const starColors = [];
+const starPointerTarget = new THREE.Vector2(), starPointer = new THREE.Vector2();
 let starSeed = 0x1a96;
 const random = () => {
   starSeed = (starSeed * 1664525 + 1013904223) >>> 0;
   return starSeed / 0x100000000;
 };
-for (let i = 0; i < 420; i++) {
+for (let i = 0; i < 2400; i++) {
   const radius = 11 + random() * 44;
   const z = random() * 2 - 1;
   const angle = random() * Math.PI * 2;
@@ -388,7 +389,9 @@ for (let i = 0; i < 420; i++) {
 starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
 starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
 const starField = new THREE.Points(starGeometry, new THREE.PointsMaterial({
-  size: 0.034,
+  size: 0.047,
+  map: whiteSignal,
+  blending: THREE.AdditiveBlending,
   sizeAttenuation: true,
   vertexColors: true,
   transparent: true,
@@ -1157,6 +1160,7 @@ renderer.domElement.addEventListener('pointerup', (event) => {
   }
 });
 renderer.domElement.addEventListener('pointermove', (event) => {
+  starPointerTarget.set(event.clientX / width - .5, event.clientY / height - .5);
   if (soundPointerPrevious) {
     const distance = Math.hypot(event.clientX - soundPointerPrevious.x, event.clientY - soundPointerPrevious.y);
     if (distance > 1) soundPointerTravel += Math.min(.1, distance / Math.max(1, renderer.domElement.clientWidth));
@@ -1201,6 +1205,7 @@ renderer.domElement.addEventListener('dblclick', (event) => {
 });
 
 let width = 1, height = 1, qualityScale = 1, isExhibition = false;
+let stageScale = Math.min(1, Math.max(.1, Number(new URL(location.href).searchParams.get('stageScale')) || 1));
 let qualitySamples = 0, qualityElapsed = 0, qualityLastCheck = performance.now();
 function resize() {
   const viewportWidth = $('viewport').clientWidth;
@@ -1209,13 +1214,17 @@ function resize() {
   // the atlas at its exhibition anchor without a hard canvas edge at the panel.
   width = Math.max(1, viewportWidth);
   height = Math.max(1, $('viewport').clientHeight);
-  renderer.setPixelRatio(renderPixelRatio(width, height, window.devicePixelRatio, graphics?.legacy) * qualityScale);
+  renderer.setPixelRatio(renderPixelRatio(width, height, window.devicePixelRatio, graphics?.legacy) * qualityScale * stageScale);
   renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
   if (isExhibition) camera.setViewOffset(width, height, width / 2 - viewportWidth * .42, height * .06, width, height);
   else camera.clearViewOffset();
   exhibitionLines.resize(width, height);
 }
 new ResizeObserver(resize).observe($('viewport'));
+window.addEventListener('message', event => {
+  if (event.source !== window.parent || event.origin !== location.origin || event.data?.type !== 'atlas-stage-scale') return;
+  stageScale = Math.min(1, Math.max(.1, Number(event.data.scale) || 1)); resize();
+});
 function showReadoutTab(id) {
   document.querySelectorAll('[data-readout-tab]').forEach((button) => {
     button.setAttribute('aria-selected', String(button.dataset.readoutTab === id));
@@ -1379,7 +1388,7 @@ function updateProjectionReadout() {
 window.__PB_DEBUG__ = {
   graphics: () => ({ type: graphics?.type || 'webgl2', legacy: Boolean(graphics?.legacy), pixelRatio: renderer.getPixelRatio(), width: renderer.domElement.width, height: renderer.domElement.height, cssWidth: width, cssHeight: height, calls: renderer.info.render.calls, antialias: renderer.getContext().getContextAttributes().antialias, qualityScale, strokes: exhibitionLines.snapshot() }),
   navigation: () => ({ scope: selectionScope, boundaryAnchor: groupWorldTarget(selectedGroup).toArray(), fieldAnchor: climate.root.position.toArray() }),
-  backgroundMotion: () => ({ starfieldAngle, systemRotationAngle }),
+  backgroundMotion: () => ({ starfieldAngle, systemRotationAngle, stars: starPositions.length / 3 }),
   motion: () => ({ overview, motionPaused, manualObservation, autoRotate: orbit.autoRotate, boundaryAngles: [...boundaryOrbitMotion].map(([id, motion]) => ({ id, angle: motion.angle })), orbitAngles: [...riskOrbits.values()].map((line) => line.userData.angle), reduced: reducedMotion.matches, focusing: !!focusTransition, projection: climate.projectionProgress, points: climate.positions.length }),
   overview: () => ({ active: overview, ready: overviewReady, error: overviewError, fields: [...overviewLayers].map(([boundary, layer]) => ({ boundary, dataset: layer.data.id, observations: layer.data.observations.length, visible: layer.root.visible, sources: layer.data.sources })) }),
   atlas: () => ({ dataset: datasetFull?.id ?? null, error: datasetError, sourceRows: datasetFull?.records.length ?? 0, displayed: datasetFull ? climateField.observations.length : 0, boundary: selectedGroup.id, available: atlasManifest.boundaries[selectedGroup.id].datasets, canSurface: climate.canSurface, kind: datasetFull?.kind ?? null }),
@@ -1494,7 +1503,9 @@ let starfieldAngle = 0;
 function updatePlanetaryOrbits(dt) {
   const motionDt = dt * EXHIBITION_MOTION_SPEED;
   starfieldAngle = (starfieldAngle + Math.PI * 2 / STARFIELD_ROTATION_PERIOD * motionDt) % (Math.PI * 2);
-  starField.rotation.y = starfieldAngle;
+  starPointer.lerp(starPointerTarget, 1 - Math.exp(-dt * 3));
+  starField.rotation.y = starfieldAngle + starPointer.x * .045;
+  starField.rotation.x = starPointer.y * .03;
   if (motionPaused) return;
   systemRotationAngle = (systemRotationAngle + Math.PI * 2 / SYSTEM_ROTATION_PERIOD * motionDt) % (Math.PI * 2);
   planetarySystemRoot.rotation.y = systemRotationAngle;

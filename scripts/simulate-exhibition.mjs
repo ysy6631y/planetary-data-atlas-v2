@@ -1,3 +1,4 @@
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -32,7 +33,7 @@ for (const [engine, driver, options] of engines) {
         HTMLCanvasElement.prototype.getContext = function(type, ...args) { return type === 'webgl2' ? null : original.call(this, type, ...args); };
       }
     }, engine !== 'chrome');
-    await page.goto(origin);
+    await page.goto(contentUrl(origin));
     await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready && !window.__PB_DEBUG__.motion().focusing);
     await page.mouse.move(760, 100);
     await page.waitForTimeout(2800);

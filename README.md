@@ -23,13 +23,12 @@ npm run dev
 Open http://127.0.0.1:5174/ . The port is strict and binds to loopback.
 V1 can run independently at 5173. Node 22.12+ is required by Vite.
 
-On a laptop, the `27″ VIEW` toolbar button (or `?preview=exhibition`) opens a
-2560×1440 iframe scaled to fit the current window. This keeps the exhibition
-camera composition, 34%-width console and typography identical to the 27-inch
-viewport instead of triggering the compact layout below 1700px. The preview
-still runs the actual site and sound controls; it is not a screenshot. Ordinary
-window mode retains its compact layout. Automatic exploration changes views
-over time; reference screenshots were captured after manually pausing it.
+The public site and laptop preview both use the same fixed 2560×1440 stage,
+scaled to fit the physical window without changing menu spacing or camera framing.
+The public stage has no preview toolbar. `?preview=exhibition` adds preview tools;
+`?layout=window` opens the optional responsive layout. Internal browser checks use
+`?stage=content`. The render buffer follows the physical stage scale to avoid
+oversampling smaller screens. Automatic exploration still changes views over time.
 
 ```sh
 npm test
@@ -200,3 +199,12 @@ history retention, real exceeded-reference markers, camera-denied manual sound,
 the presence gate, decoded audio signal and 45-second idle return. Set
 `ATLAS_WEBKIT_MODULE` to include the legacy WebGL 1 WebKit case. Reports and
 screenshots go to `validation/exhibition-simulation/`.
+
+The boundary menu is compact and fits without scrolling at the fixed stage size.
+The data stream uses 17px rows; stars increase to 2400 with subtle pointer parallax.
+The persistent bottom status reports camera detection, face-width ratio, near/far
+state and actual audio playback/blocking. The operator can click “오디오 허용” to
+activate Safari audio while keeping AUTO mode. Camera entry uses 10% face width
+(previously 16%), with 7.5% exit hysteresis; this is not a calibrated distance.
+`node scripts/check-installation.mjs` checks the public iframe at four physical
+window sizes and feeds controlled worker results through the camera/audio gate.

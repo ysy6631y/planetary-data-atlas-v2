@@ -1,5 +1,5 @@
 // Relative face width, not a calibrated distance in metres.
-export const PRESENCE_CONFIG = { enter: .16, exit: .12, enterMs: 500, exitMs: 1200, lostMs: 1800 };
+export const PRESENCE_CONFIG = { enter: .10, exit: .075, enterMs: 500, exitMs: 1200, lostMs: 1800 };
 
 export function createPresenceGate(onChange, config = PRESENCE_CONFIG) {
   let near = false, candidateSince = null;
@@ -18,10 +18,16 @@ export function createPresenceGate(onChange, config = PRESENCE_CONFIG) {
   };
 }
 
-export function createPresenceDetector({ button, status, sound }) {
+export function createPresenceDetector({ button, status, sound, onState = () => {} }) {
   let worker, stream, timer, startupTimer, video, busy = false, active = false, generation = 0, lastResult = 0;
   let disposed = false;
   let lastVideoTime = -1;
+  let cameraState = { phase: 'starting', ratio: 0, near: false };
+  function report(message, details = {}) {
+    cameraState = { ...cameraState, ...details, message };
+    status.textContent = message;
+    onState({ ...cameraState });
+  }
   const gate = createPresenceGate(near => sound.setPresence(near));
   sound.setPresence(false, true);
 
@@ -32,12 +38,12 @@ export function createPresenceDetector({ button, status, sound }) {
     if (video) { video.pause(); video.srcObject = null; video.remove(); video = null; }
     gate.reset(); sound.setPresence(false, true);
     button.disabled = false; button.textContent = '카메라 시작'; button.setAttribute('aria-pressed', 'false');
-    status.textContent = message;
+    report(message, { phase: 'off', ratio: 0, near: false });
   }
 
   async function start() {
     const token = ++generation;
-    button.disabled = true; button.textContent = '카메라 연결 중'; status.textContent = '접근 감지를 준비하고 있습니다';
+    button.disabled = true; button.textContent = '카메라 연결 중'; report('접근 감지를 준비하고 있습니다', { phase: 'starting', ratio: 0, near: false });
     sound.unlock();
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('HTTPS 또는 localhost에서 카메라를 사용할 수 있습니다');
@@ -60,13 +66,13 @@ export function createPresenceDetector({ button, status, sound }) {
           clearTimeout(startupTimer);
           active = true; lastResult = performance.now();
           button.disabled = false; button.textContent = '카메라 중지'; button.setAttribute('aria-pressed', 'true');
-          status.textContent = '접근 감지 중 · 가까이 오면 소리가 켜집니다';
+          report('접근 감지 중 · 가까이 오면 소리가 켜집니다', { phase: 'active' });
           timer = setInterval(capture, 100);
         }
         if (data.type === 'result') {
           busy = false; lastResult = performance.now();
           const near = document.hidden ? false : gate.update(data.ratio, lastResult);
-          status.textContent = document.hidden ? '화면 비활성 · 소리 대기' : near ? '가까움 · 소리 재생' : data.ratio > 0 ? '멀리 있음 · 가까이 와 주세요' : '사람을 기다리는 중 · 소리 대기';
+          report(document.hidden ? '화면 비활성 · 소리 대기' : near ? '사람 감지 · 근접' : data.ratio > 0 ? '사람 감지 · 거리 대기' : '사람을 기다리는 중', { phase: 'active', ratio: data.ratio, near });
         }
       };
       worker.postMessage({ type: 'init', wasm: new URL('mediapipe/wasm', base).href, model: new URL('mediapipe/models/face-detector.tflite', base).href });
@@ -79,7 +85,7 @@ export function createPresenceDetector({ button, status, sound }) {
     if (!active || document.hidden) return;
     if (performance.now() - lastResult > 2500) {
       gate.reset(); sound.setPresence(false, true);
-      status.textContent = '영상 확인 중 · 소리 대기';
+      report('영상 확인 중 · 소리 대기', { ratio: 0, near: false });
     }
     if (busy || video?.readyState < 2 || video.currentTime === lastVideoTime) return;
     lastVideoTime = video.currentTime;
@@ -92,13 +98,13 @@ export function createPresenceDetector({ button, status, sound }) {
     } catch { if (token === generation) stop('영상 처리 오류 · 다시 시작해 주세요'); }
   }
   const toggle = () => { if (active) stop(); else void start(); };
-  const visibility = () => { gate.reset(); sound.setPresence(false, true); if (active) status.textContent = document.hidden ? '화면 비활성 · 소리 대기' : '접근 감지 중 · 소리 대기'; };
+  const visibility = () => { gate.reset(); sound.setPresence(false, true); if (active) report(document.hidden ? '화면 비활성 · 소리 대기' : '접근 감지 중 · 소리 대기', { ratio: 0, near: false }); };
   const pagehide = () => stop();
   button.addEventListener('click', toggle);
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('pagehide', pagehide);
   void start();
-  return { stop, dispose() {
+  return { stop, snapshot: () => ({ ...cameraState }), dispose() {
     if (disposed) return; disposed = true; stop();
     button.removeEventListener('click', toggle);
     document.removeEventListener('visibilitychange', visibility);

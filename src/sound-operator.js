@@ -20,6 +20,25 @@ export function mountSoundOperator() {
     <p>1 재입력: 카메라 자동 감지 복귀 · 0: 즉시 음소거</p>
   </div>`;
   document.body.append(panel);
+  const monitor = document.createElement('div'); monitor.id = 'exhibition-status';
+  monitor.innerHTML = '<span id="camera-monitor">CAM 준비 중</span><span id="audio-monitor">AUTO · 대기</span><button type="button" id="audio-activate">오디오 허용</button><span>1 AMBIENT · 0 MUTE</span>';
+  document.body.append(monitor);
+  let cameraState = { phase: 'starting', ratio: 0, near: false };
+  const renderMonitor = (state = sound.snapshot()) => {
+    const camera = cameraState.phase === 'active'
+      ? cameraState.ratio > 0 ? `CAM 인식 · ${cameraState.near ? '근접' : '거리 대기'} · ${Math.round(cameraState.ratio * 100)}%` : 'CAM 사람 대기'
+      : cameraState.phase === 'starting' ? 'CAM 연결 중' : `CAM ${cameraState.message || '꺼짐'}`;
+    const playing = state.playback === 'playing' && !state.ambientPaused && !state.ambientMuted && state.ambientVolume > 0;
+    const blocked = state.playback === 'blocked' || (!state.unlocked && state.present);
+    const audio = !state.enabled ? 'AUDIO 음소거' : playing ? `${state.mode.toUpperCase()} · 재생 ${Math.round(state.ambientVolume * 100)}%`
+      : state.playback === 'error' ? 'AUDIO 오류' : blocked ? 'AUDIO 차단 · 클릭 필요'
+      : !state.unlocked || state.contextState === 'suspended' ? 'AUDIO 클릭 필요' : state.mode === 'auto' && !state.present ? 'AUTO · 근접 대기' : 'AUDIO 준비 중';
+    const setText = (selector, value) => { const node = monitor.querySelector(selector); if (node.textContent !== value) node.textContent = value; };
+    setText('#camera-monitor', camera); setText('#audio-monitor', audio);
+    monitor.dataset.playing = String(playing); monitor.dataset.blocked = String(blocked);
+    monitor.querySelector('button').hidden = playing;
+  };
+  monitor.querySelector('button').onclick = event => sound.snapshot().enabled ? sound.unlock(event) : sound.setMode('ambient', event);
   const cameraControls = document.querySelector('.presence-controls');
   cameraControls.hidden = false;
   panel.querySelector('.sound-operator-body').append(cameraControls);
@@ -40,6 +59,7 @@ export function mountSoundOperator() {
   const toggleSound = event => sound.setMode(sound.snapshot().enabled ? 'muted' : 'auto', event);
   toggle.addEventListener('click', toggleSound);
   const unsubscribe = sound.subscribe(state => {
+    renderMonitor(state);
     const mode = state.mode.toUpperCase();
     const playing = state.playback === 'playing' && !state.ambientPaused && state.ambientVolume > 0 && !state.ambientMuted;
     const label = !state.enabled ? '음소거' : state.playback === 'error' ? '오디오 오류' : state.playback === 'blocked' ? '재생 차단 · 1 또는 시작 버튼' : playing ? `재생 ${Math.round(state.ambientVolume * 100)}%` : state.mode === 'auto' && !state.present ? '감지 대기' : state.playback === 'buffering' ? '불러오는 중' : '소리 대기 · 1로 시작';
@@ -56,12 +76,14 @@ export function mountSoundOperator() {
     toggle.setAttribute('aria-label', state.enabled ? 'Turn sound off' : 'Return to automatic sound');
     toggle.title = `AUDIO ${mode} · 1 Ambient / Auto · 0 Mute`;
   });
-  const presence = createPresenceDetector({ button: document.getElementById('presence-start'), status: document.getElementById('presence-status'), sound });
+  const presence = createPresenceDetector({ button: document.getElementById('presence-start'), status: document.getElementById('presence-status'), sound,
+    onState(state) { cameraState = state; renderMonitor(); } });
+  const monitorTimer = setInterval(renderMonitor, 500);
   window.__PB_AUDIO__ = sound;
   const operator = { sound, presence, dispose() {
-    unsubscribe(); presence.dispose(); sound.dispose(); toggle.removeEventListener('click', toggleSound);
+    clearInterval(monitorTimer); unsubscribe(); presence.dispose(); sound.dispose(); toggle.removeEventListener('click', toggleSound);
     cameraControls.hidden = true; document.body.append(cameraControls);
-    panel.remove(); delete window.__PB_SOUND_OPERATOR__;
+    panel.remove(); monitor.remove(); delete window.__PB_SOUND_OPERATOR__;
   } };
   window.__PB_SOUND_OPERATOR__ = operator;
   if (import.meta.hot) import.meta.hot.dispose(() => operator.dispose());

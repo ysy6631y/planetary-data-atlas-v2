@@ -4,8 +4,13 @@ const WIDTH = 2560, HEIGHT = 1440;
 // all media-query breakpoints identical to the 27-inch exhibition captures.
 export function mountExhibitionPreview() {
   const url = new URL(location.href);
-  if (url.searchParams.get('preview') !== 'exhibition') return false;
+  // The public exhibition uses the same fixed stage as the laptop preview.
+  // Only the iframe content / explicit window layout can use viewport breakpoints.
+  if (url.searchParams.get('stage') === 'content' || url.searchParams.get('layout') === 'window') return false;
+  const preview = url.searchParams.get('preview') === 'exhibition';
   url.searchParams.delete('preview');
+  url.searchParams.set('stage', 'content');
+  url.searchParams.set('stageScale', String(Math.min(1, innerWidth / WIDTH, Math.max(1, innerHeight - (preview ? 44 : 0)) / HEIGHT)));
   const frame = document.createElement('iframe');
   frame.id = 'exhibition-preview-frame';
   frame.title = '2560 × 1440 전시 화면';
@@ -14,19 +19,29 @@ export function mountExhibitionPreview() {
   const tools = document.createElement('div');
   tools.id = 'exhibition-preview-tools';
   tools.innerHTML = `<span>2560 × 1440 · 전시 구도 미리보기 <output id="preview-scale"></output></span><button type="button">창 크기에 맞춰 보기</button>`;
-  tools.querySelector('button').onclick = () => location.assign(url.href);
+  tools.querySelector('button').onclick = () => { url.searchParams.delete('stage'); url.searchParams.set('layout', 'window'); location.assign(url.href); };
   document.body.className = 'exhibition-preview';
-  document.body.replaceChildren(frame, tools);
+  document.body.replaceChildren(...(preview ? [frame, tools] : [frame]));
   const resize = () => {
-    const availableHeight = Math.max(1, innerHeight - 44);
+    const toolbarHeight = preview ? 44 : 0;
+    const availableHeight = Math.max(1, innerHeight - toolbarHeight);
     const scale = Math.min(innerWidth / WIDTH, availableHeight / HEIGHT);
     frame.style.width = `${WIDTH}px`; frame.style.height = `${HEIGHT}px`;
     frame.style.transform = `scale(${scale})`;
     frame.style.left = `${(innerWidth - WIDTH * scale) / 2}px`;
-    frame.style.top = `${44 + (availableHeight - HEIGHT * scale) / 2}px`;
+    frame.style.top = `${toolbarHeight + (availableHeight - HEIGHT * scale) / 2}px`;
+    frame.contentWindow?.postMessage({ type: 'atlas-stage-scale', scale: Math.min(1, scale) }, location.origin);
     tools.querySelector('output').textContent = ` / ${Math.round(scale * 100)}%`;
   };
   window.addEventListener('resize', resize); resize();
+  document.body.addEventListener('pointerdown', () => frame.contentWindow?.focus());
+  window.addEventListener('keydown', event => {
+    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || !['0', '1'].includes(event.key)) return;
+    const sound = frame.contentWindow?.__PB_AUDIO__;
+    if (!sound) return;
+    event.preventDefault();
+    sound.setMode(event.key === '0' ? 'muted' : sound.snapshot().mode === 'ambient' ? 'auto' : 'ambient', event);
+  });
   const header = installIdleHeader();
   frame.addEventListener('load', () => { frame.contentWindow.focus(); frame.contentWindow.addEventListener('pointermove', header.activity, { passive: true }); });
   if (import.meta.hot) import.meta.hot.dispose(() => window.removeEventListener('resize', resize));

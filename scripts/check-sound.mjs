@@ -1,3 +1,4 @@
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -63,7 +64,7 @@ try {
           window.AudioContext = class extends Constructor { constructor(...args) { super(...args); window.__audioCalls.contexts++; } };
         }
       }, variant);
-      await page.goto(origin);
+      await page.goto(contentUrl(origin));
       await page.waitForFunction(() => window.__PB_AUDIO__ && document.getElementById('presence-start').disabled === false);
       const state = () => page.evaluate(() => window.__PB_AUDIO__.snapshot());
       assert.equal((await state()).mode, 'auto');

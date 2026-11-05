@@ -16,7 +16,7 @@ export function createExhibitionLines(scene, antialias) {
     const geometry = new LineSegmentsGeometry().setPositions(positions);
     const material = new LineMaterial({
       color: source.material.color,
-      linewidth: source.userData.strokeWidth || (source.isLineSegments ? 1.1 : 1.6),
+      linewidth: Math.max(1, (source.userData.strokeWidth || (source.isLineSegments ? 1.1 : 1.6)) * .7),
       transparent: true, opacity: source.material.opacity, depthWrite: false,
       alphaToCoverage: antialias,
     });

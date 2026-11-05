@@ -1,3 +1,4 @@
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -14,7 +15,7 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/');
+  await page.goto(contentUrl(process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/'));
   await page.waitForFunction(() => window.__PB_DEBUG__?.overview().ready && !window.__PB_DEBUG__.motion().focusing);
   await page.keyboard.press('Shift');
   // Let the readable console fill; the camera stays paused in the same overview.
@@ -47,7 +48,7 @@ try {
   const preview = await browser.newContext({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 2,
     recordVideo: { dir: output, size: { width: 1280, height: 720 } } });
   const motion = await preview.newPage();
-  await motion.goto(process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/');
+  await motion.goto(contentUrl(process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/'));
   await motion.waitForFunction(() => window.__PB_DEBUG__?.overview().ready && !window.__PB_DEBUG__.motion().focusing);
   await motion.keyboard.press('Shift');
   await motion.waitForFunction(() => window.__PB_STREAM__.snapshot().sequence >= 65);

@@ -16,7 +16,7 @@ test('thick orbit paths preserve source coordinates and close the loop', () => {
   assert.equal(rendered.geometry.attributes.instanceStart.count, 3);
   assert.equal(rendered.geometry.attributes.instanceEnd.getX(2), points[0].x);
   assert.equal(rendered.geometry.attributes.instanceEnd.getY(2), points[0].y);
-  assert(strokes.snapshot().minimumWidth >= 1.1);
+  assert(strokes.snapshot().minimumWidth >= 1);
 });
 
 test('switching between two and three dataset axes resizes the stroke safely', () => {
