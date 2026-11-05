@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "5ce713db301e0491489d29e79133e200735e555e",
-  "buildId": "81a6f7ac2cf7",
+  "sourceCommit": "fac467b20d3911170751f76e5ff53a17a2d14cd9",
+  "buildId": "901c05cfc909",
   "compatibilityTarget": "Safari 14.1.3",
   "layout": "width-filled-exhibition-stage",
   "interaction": "continuous-auto",
@@ -12,5 +12,8 @@
     "rowHeight": 14,
     "groupPadding": 3
   },
-  "camera": "off"
+  "camera": "local-video-only-stream",
+  "cameraPermissionRequired": true,
+  "cameraRecording": false,
+  "cameraUpload": false
 }
