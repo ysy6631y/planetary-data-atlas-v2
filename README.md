@@ -84,7 +84,12 @@ never switch the scene to MANUAL. `1` enables the continuous data mix (repeating
 `1` keeps it on); `0` mutes audio while the scene keeps moving. The drone bed
 defaults to 4%, with frequent short data packets and camera-synchronized reveal /
 glitch cues. Cursor hides after 3 seconds. Menu rows use 22px and group padding
-8px at the canonical stage height. `?interaction=manual` is an explicit developer
+8px at the canonical stage height. The final compact indicator presentation
+overrides these to a 224px-wide column, 14px rows and 3px group padding, with
+9px titles / 8.5px values. It hides the title, upper toolbar, selection heading
+and audio/status readouts. Keyboard sound controls remain active. A subtle dark
+background separates the narrow indicators from the orbit lines.
+`?interaction=manual` is an explicit developer
 review override for source inspection and the earlier camera-controlled sound;
 the controls below describe that override. Public operation needs no camera.
 

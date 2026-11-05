@@ -39,7 +39,7 @@ export function mountSoundOperator() {
       : cameraState.phase === 'starting' ? 'CAM 연결 중' : `CAM ${cameraState.message || '꺼짐'}`;
     const playing = state.playback === 'playing' && !state.ambientPaused && !state.ambientMuted && state.ambientVolume > 0;
     const blocked = state.playback === 'blocked' || (!state.unlocked && state.present);
-    const audio = !state.enabled ? 'AUDIO 음소거' : playing ? `${continuous ? 'DATA' : state.mode.toUpperCase()} · 재생 ${Math.round(state.ambientVolume * 100)}%`
+    const audio = !state.enabled ? 'AUDIO 음소거' : playing ? continuous ? 'DATA · 재생' : `${state.mode.toUpperCase()} · 재생 ${Math.round(state.ambientVolume * 100)}%`
       : state.playback === 'error' ? 'AUDIO 오류' : blocked ? 'AUDIO 차단 · 클릭 필요'
       : !state.unlocked || state.contextState === 'suspended' ? 'AUDIO 클릭 필요' : state.mode === 'auto' && !state.present ? 'AUTO · 근접 대기' : 'AUDIO 준비 중';
     const setText = (selector, value) => { const node = monitor.querySelector(selector); if (node.textContent !== value) node.textContent = value; };
@@ -73,7 +73,7 @@ export function mountSoundOperator() {
     renderMonitor(state);
     const mode = continuous && state.mode === 'ambient' ? 'DATA' : state.mode.toUpperCase();
     const playing = state.playback === 'playing' && !state.ambientPaused && state.ambientVolume > 0 && !state.ambientMuted;
-    const label = !state.enabled ? '음소거' : state.playback === 'error' ? '오디오 오류' : state.playback === 'blocked' ? '재생 차단 · 1 또는 시작 버튼' : playing ? `재생 ${Math.round(state.ambientVolume * 100)}%` : state.mode === 'auto' && !state.present ? '감지 대기' : state.playback === 'buffering' ? '불러오는 중' : '소리 대기 · 1로 시작';
+    const label = !state.enabled ? '음소거' : state.playback === 'error' ? '오디오 오류' : state.playback === 'blocked' ? '재생 차단 · 1 또는 시작 버튼' : playing ? continuous ? '재생' : `재생 ${Math.round(state.ambientVolume * 100)}%` : state.mode === 'auto' && !state.present ? '감지 대기' : state.playback === 'buffering' ? '불러오는 중' : '소리 대기 · 1로 시작';
     panel.dataset.mode = state.mode;
     panel.querySelector('#sound-mode-status').textContent = `AUDIO · ${mode} / ${label}`;
     panel.querySelector('#sound-playback-status').textContent = state.playback === 'error'

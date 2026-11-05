@@ -246,3 +246,23 @@ body { -webkit-font-smoothing: antialiased; }
 #exhibition-status button { border: 0; border-bottom: 1px solid #81796d; padding: 2px 0; color: #d6cdbc; background: transparent; font: inherit; cursor: pointer; }
 #exhibition-status[data-playing="true"] #audio-monitor { color: #c6cec0; }
 #exhibition-status[data-blocked="true"] #audio-monitor { color: #e37965; }
+
+/* Exhibition indicators occupy the old title width, not a navigation column. */
+.continuous-exhibition header,
+.continuous-exhibition .scene-top,
+.continuous-exhibition .observation-toolbar,
+.continuous-exhibition #sound-operator,
+.continuous-exhibition #exhibition-status { display: none !important; }
+.continuous-exhibition #boundaries { top: 32px; width: 224px; }
+.continuous-exhibition #boundaries .index-sheet {
+  padding: 0 8px 0 0;
+  background: linear-gradient(90deg, rgba(0,0,0,.78), rgba(0,0,0,.6) 85%, rgba(0,0,0,.12));
+}
+.continuous-exhibition #boundaries .index-sheet > h2 { margin-bottom: 8px; font-size: 8px; line-height: 12px; }
+.continuous-exhibition #boundaries .group { padding: 3px 0; }
+.continuous-exhibition #boundaries .group-title { padding: 2px 0; gap: 4px; font-size: 9px; line-height: 1.25; }
+.continuous-exhibition #boundaries .group-title .number { min-width: 16px; }
+.continuous-exhibition #boundaries .control {
+  min-height: 14px; padding: 1px 0 1px 20px; gap: 4px; font-size: 8.5px; line-height: 12px;
+}
+.continuous-exhibition #boundaries .control .value { flex: 0 0 44px; text-align: right; }

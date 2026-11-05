@@ -47,18 +47,16 @@ for (const [engine, driver, options] of engines) {
       assert.equal(await frame.evaluate(() => window.__PB_EXPLORATION__.getState().mode), 'AUTO');
     }
     await page.mouse.click(120, 220); await page.mouse.wheel(0, 500);
-    await frame.locator('#sound-toggle').click();
-    assert.equal(await frame.evaluate(() => window.__PB_AUDIO__.snapshot().mode), 'muted');
-    await frame.locator('#sound-toggle').click();
-    assert.equal(await frame.evaluate(() => window.__PB_AUDIO__.snapshot().mode), 'ambient');
+    for (const selector of ['header', '.observation-toolbar', '.scene-top', '#sound-operator', '#exhibition-status']) assert.equal(await frame.locator(selector).isVisible(), false, selector);
     await wait(() => window.__PB_AUDIO__.snapshot().history.filter(v => v.trigger === 'zoom').length >= 4 && window.__PB_AUDIO__.snapshot().history.filter(v => v.trigger === 'autonomous').length >= 6);
     await wait(() => window.__continuousSync.length > 0);
     const state = await frame.evaluate(() => ({ exploration: window.__PB_EXPLORATION__.getState(), audio: window.__PB_AUDIO__.snapshot(), sync: window.__continuousSync,
-      menu: { control: document.querySelector('.control').getBoundingClientRect().height, groupPadding: getComputedStyle(document.querySelector('.group')).paddingTop } }));
+      menu: { control: document.querySelector('.control').getBoundingClientRect().height, groupPadding: getComputedStyle(document.querySelector('.group')).paddingTop,
+        width: document.getElementById('boundaries').getBoundingClientRect().width, height: document.querySelector('.index-sheet').getBoundingClientRect().height } }));
     assert.equal(state.exploration.mode, 'AUTO'); assert.equal(state.audio.mode, 'ambient'); assert.equal(state.audio.manualAmbientVolume, .04);
     assert(state.sync.every(cue => cue.delay < 120), JSON.stringify(state.sync));
     assert(state.audio.history.some(v => v.family === 'micro')); assert(state.audio.peakVoices <= 2);
-    assert(state.menu.control <= 23);
+    assert(state.menu.control <= 14); assert.equal(state.menu.width, 224); assert(state.menu.height < 460);
     for (const height of [1440, 1320]) {
       await page.setViewportSize({ width: 2560, height });
       await wait(expected => innerHeight === expected && document.getElementById('scene').clientHeight === expected, height);
