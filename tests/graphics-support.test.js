@@ -7,7 +7,8 @@ test('Retina and 5K drawing buffers stay within the GPU pixel budget', () => {
     for (const legacy of [true, false]) {
       const ratio = renderPixelRatio(width, height, deviceRatio, legacy);
       assert(ratio > 0 && ratio <= deviceRatio);
-      assert(width * height * ratio ** 2 <= (legacy ? 1800000 : 4000000) + 1);
+      assert(width * height * ratio ** 2 <= 16000000 + 1);
+      if (width === 2560 && height === 1440) assert.equal(ratio, 2);
     }
   }
 });
@@ -20,6 +21,7 @@ test('Safari 14 selects WebGL 1 when WebGL 2 is absent or throws', () => {
       const canvas = { getContext(type, options) {
         requested.push(type);
         assert.equal(options.preserveDrawingBuffer, false);
+        assert.equal(options.antialias, true);
         if (type === 'webgl2' && throws) throw new Error('Unavailable driver');
         return type === 'webgl' ? context : null;
       } };

@@ -44,8 +44,8 @@ export function createClimateLayer(data, direction, scene, labelHost) {
         depthLight = clamp(16.0 / max(1.0, -view.z), 0.4, 1.0);
         float hoverPoint = abs(observationIndex - hovered) < 0.1 ? 1.0 : 0.0;
         hoverLight = hoverPoint;
-        float detailSize = clamp(50.0 / max(1.0, -view.z), 2.1, 3.4) + selectedPoint * 1.4 + hoverPoint * 0.7;
-        float overviewSize = clamp(32.0 / max(1.0, -view.z), 1.4, 2.2);
+        float detailSize = clamp(70.0 / max(1.0, -view.z), 3.8, 5.4) + selectedPoint * 2.4 + hoverPoint * 1.4;
+        float overviewSize = clamp(46.0 / max(1.0, -view.z), 2.8, 4.2);
         gl_PointSize = mix(detailSize, overviewSize, overview) * pixelRatio * mix(0.9, 1.0, reveal);
         gl_Position = projectionMatrix * view;
       }`,
@@ -60,13 +60,13 @@ export function createClimateLayer(data, direction, scene, labelHost) {
       void main() {
         float radius = length(gl_PointCoord - vec2(0.5)) * 2.0;
         if (radius > 1.0) discard;
-        float disc = 1.0 - smoothstep(0.62, 0.86, radius);
+        float disc = 1.0 - smoothstep(0.48, 1.0, radius);
         // Keep source observations in the same warm white language as the
         // atlas nodes; reserve color for the selected signal and axis guide.
         vec3 color = mix(vec3(0.93, 0.92, 0.88), vec3(0.78, 0.80, 0.79), overview);
         color = mix(color, vec3(1.0, 0.30, 0.23), selectedPoint);
         color = mix(color, vec3(1.0), max(scan * 0.35, hoverLight * 0.3));
-        gl_FragColor = vec4(color, disc * depthLight * opacity * reveal * mix(1.0, 0.85, overview));
+        gl_FragColor = vec4(color * 1.12, disc * depthLight * opacity * reveal);
       }`,
   });
   const points = new THREE.Points(new THREE.BufferGeometry(), material);
@@ -197,7 +197,7 @@ export function createClimateLayer(data, direction, scene, labelHost) {
       const dt = Math.min(0.1, (now - (lastTime ?? now)) / 1000); lastTime = now;
       alpha = reducedMotion.matches ? (active ? 1 : .025) : THREE.MathUtils.damp(alpha, active ? 1 : 0.025, 8, dt);
       material.uniforms.opacity.value = alpha * (fadingAt === null ? 1 : reducedMotion.matches ? 0 : Math.max(0, 1 - (now - fadingAt) / 120));
-      material.uniforms.projection.value = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - projectionStarted) / 640));
+      material.uniforms.projection.value = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - projectionStarted) / 280));
       material.uniforms.clock.value = now / 1000 + direction[0] * 2 + direction[1] * 3;
       material.uniforms.idle.value = this.overview && !reducedMotion.matches ? 1 : 0;
       material.uniforms.pixelRatio.value = pixelRatio;

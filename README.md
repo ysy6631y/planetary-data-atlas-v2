@@ -23,6 +23,14 @@ npm run dev
 Open http://127.0.0.1:5174/ . The port is strict and binds to loopback.
 V1 can run independently at 5173. Node 22.12+ is required by Vite.
 
+On a laptop, the `27″ VIEW` toolbar button (or `?preview=exhibition`) opens a
+2560×1440 iframe scaled to fit the current window. This keeps the exhibition
+camera composition, 34%-width console and typography identical to the 27-inch
+viewport instead of triggering the compact layout below 1700px. The preview
+still runs the actual site and sound controls; it is not a screenshot. Ordinary
+window mode retains its compact layout. Automatic exploration changes views
+over time; reference screenshots were captured after manually pausing it.
+
 ```sh
 npm test
 npm run build
@@ -46,11 +54,14 @@ This stopped initialization before the 3D scene and index were ready.
 - The sound configuration uses equivalent JSON cloning and array indexing.
 - Same-origin entry scripts omit the redundant `crossorigin` attribute; the
   older WebKit test runtime crashed when loading a module entry with that flag.
-- The ambient WAV is not preloaded. Sample-bank fetching/decoding waits until
-  the browser actually resumes its audio context.
-- Render buffers are capped at 4 million pixels on WebGL 2 and 1.8 million on
-  WebGL 1. WebGL 1 renders at up to 30 fps. Hidden tabs skip animation work;
-  multisampling and persistent drawing buffers are disabled to reduce GPU memory.
+- The 8-second ambient WAV preloads independently; sample-bank fetching/decoding
+  waits until the browser actually resumes its audio context.
+- The exhibition targets a 2560×1440 viewport and DPR 2. The full scene renders
+  behind the translucent console at Retina resolution with antialiasing.
+  Buffers have a 16-million-pixel ceiling.
+  Sustained slow frames gradually reduce render scale to 72% at minimum;
+  text stays at native resolution and strokes retain their CSS-pixel thickness.
+  Hidden tabs skip animation work and drawing-buffer preservation stays off.
 - If a graphics driver disables all WebGL, the site opens a data view containing
   all nine boundary groups, actual risk values, and paginated original records.
   It does not invent a 3D result on unsupported hardware.
@@ -66,13 +77,56 @@ WebKit. `ATLAS_TEST_URL` can point at the deployed site.
 For Safari 14 local testing, use the production preview (`npm exec vite preview`)
 after building both renderers; the development server uses the modern engine.
 
+## Operator sound controls
+
+- `1`: toggle **AMBIENT** (continuous loop, camera-independent) and **AUTO**
+  (existing camera/presence system). Starting from MUTE, `1` starts AMBIENT.
+- `0`: immediate **MUTE** for both ambient audio and generated signal voices.
+  Camera results cannot undo MUTE. Held keys, modifier shortcuts and numeric
+  input inside CSV/select/volume controls do not change modes.
+- The small top **AUDIO** readout shows the current mode and actual media
+  playback, buffering, blocked or failed status. Open it for an explicit start /
+  retry button, AUTO/MUTE buttons, camera restart and ambient volume slider.
+- Default manual ambient volume is **15%**, configurable in
+  `src/sound-config.js` (`manualAmbientVolume`) or the operator slider. The slider
+  preference persists locally where storage is available; modes never persist
+  across reloads. Camera-controlled background volume remains separate.
+- Normal mode changes fade over 450ms without replacing/restarting the ambient
+  element. AUTO retains its presence attack/release. `0` bypasses fades.
+- HTML audio `play()` and AudioContext `resume()` run directly in the key/click
+  handler, before any camera permission, fetching or decoding. One context and
+  one looping media element prevent duplicated playback. The direct media path
+  works even without Web Audio, face detection, or 3D graphics. Hidden tabs pause
+  sound and returning tabs attempt to resume; the operator can retry explicitly.
+- Safari can still block playback at browser/OS level. Use the actual iMac to
+  verify its output device and audible volume; a browser test cannot verify a
+  physical speaker. The start button provides a click gesture if a key is blocked.
+
+After building, run `npm run test:sound`. Set `ATLAS_WEBKIT_MODULE` as above to
+include WebKit. The check denies camera permission and verifies keyboard starts,
+looping, fades, AUTO return, instant/sticky mute, held-key handling, editable input,
+volume adjustment, one production context, a nonzero decoded audio signal, and
+operation without WebGL/AudioContext. Reports go to `validation/sound-operator/`.
+
 ## Interface
 
-- Full-viewport original 3D scene, with transparent left and right overlays.
+- Primary composition: 2560×1440 exhibition screen. The reference sphere is
+  framed at about 117% of the earlier 6.8-unit view, centered at 42% of viewport
+  width and 44% of height. Dataset zoom is independent and centers the actual
+  point-cloud mean at distance 4.8 (3.4 for a selected observation). Smaller screens
+  retain a compact layout. World coordinates and risk values are unchanged.
 - Left: original restrained title, persistent INDEX from the actual nine groups
   and thirteen indicators, existing risk ruler and VIEW DISTANCE at the bottom.
-- Right: DATA STREAM, existing dataset selector and expandable ENTITY / AXES /
-  CSV ROW / context controls, followed by the original contextual inspector.
+- Right: full-height source readout over the scene, with no DATA STREAM title,
+  footer, or dividing lines. Only a compact color-key row sits above the readout. DATA opens the existing dataset selector, ENTITY /
+  AXES / CSV ROW controls and contextual inspector as an on-demand overlay.
+  The console occupies 34% of the viewport, with a 42% black backdrop and a soft left edge,
+  no dividing border or shadow, and
+  substantially larger log type. The central origin has an additive stellar
+  glow; observation points have a larger guaranteed screen size.
+- `src/exhibition-lines.js` draws the exact original line paths as antialiased
+  screen-space triangles, at 1.1–2.2 CSS pixels. Native 1px WebGL lines no
+  longer determine orbit quality. Original geometries remain for validation.
 - REFERENCE, DISTANCE and DATA views retain their existing contents.
 - Manual indicator selection opens planetary-reference information; selecting a
   plotted source observation opens its entity, values, units and source record.
@@ -88,28 +142,36 @@ after building both renderers; the development server uses the modern engine.
 
 - EVENT: actual initialization, source reading/parsing/rendering, errors, ready
   states, automatic phases, reference selections, entity/axis changes and manual input.
-- TRACE: paced readouts of real source provenance and display coordinates. The
-  label explicitly distinguishes this presentation from processing events.
-- Up to 72 actual observations/records per source are sampled in source order.
-  The displayed sample count is stated; original datasets remain complete.
-- Maximum 140 visible lines and 180 queued lines; queued traces are discarded
-  on context changes. A requestAnimationFrame pump runs only while work is queued,
-  at most one text insertion per 38 ms. No independent endless log animation.
+- TRACE: continuous replay of actual cached source records and display
+  coordinates, with READOUT pass numbers. All records cycle in source
+  order; REFERENCE rows use the actual current boundary values and world positions. This is not a live external data feed.
+- At most 140 buffered rows and 180 queued events. A linear `translate3d`
+  animation varies the readout throughput in small batches (roughly 5–11 rows/second), with brief irregular 100–380ms output holds,
+  without scroll-position catch-up. Only completely offscreen rows are
+  recycled. Reduced motion advances discretely every 350ms.
+- The scene render loop synchronizes the readout with the current orbit/camera/
+  projection phase and shares `EXHIBITION_MOTION_SPEED`. Source rows switch only
+  after the corresponding dataset is rendered; boundary transitions show actual
+  reference values instead of stale source rows. Hidden pages pause both systems.
 - The geometry coordinates are captured when the source is rendered, before
   later entity filtering or axis changes can replace the current layout.
 
-Automatic exploration remains the V1 controller: 5-second initial observation,
-indicator visits in INDEX order, at most three datasets per boundary at 5 seconds
-each, smooth return and loop. Real input interrupts; 45 seconds of inactivity
+Automatic exploration uses the V1 controller with exhibition timing overrides:
+6-second initial observation, 480ms automatic camera moves, 1.05-second indicator
+visits in INDEX order, and at most three datasets per boundary at 3.2 seconds
+each. Manual focus uses a 380ms ease-out. Real input interrupts; 45 seconds of inactivity
 resumes through the overview. Orbits pause during reading; stars keep moving.
 
 ## Files changed in V2
 
 `src/main.js`, `src/data-process.js`, `src/select-control.js`,
 `vite.config.js`, `package.json`, `package-lock.json`, and this README.
-New files: `src/exhibition-ui.js`, `src/exhibition.css`, `src/data-stream.js`,
-`scripts/check-ui.mjs`. Source datasets, core scene rendering, camera animation,
-risk calculations, auto exploration and sound behavior are preserved.
+New presentation files include `src/exhibition-ui.js`, `src/exhibition.css`,
+`src/exhibition-lines.js`, `src/data-stream.js`, `src/bootstrap.js`, and the
+graphics/data fallback modules. Source datasets, risk calculations, spatial
+coordinates, the exploration controller, and source inspection are preserved;
+rendering, visual intensity, readout pacing and transition timing are tuned
+for the installation.
 
 ## Verification
 
@@ -123,3 +185,18 @@ report to a temporary directory printed on completion.
 Default browser-test URL is http://127.0.0.1:5174/; override with `ATLAS_TEST_URL`.
 The core-preservation check compares the original V1 source files; override its
 path with `V1_SOURCE` if needed. Google Chrome must be installed for the browser test.
+
+For the 27-inch before/after capture workflow, serve the production build at
+4174 and run `node scripts/capture-exhibition.mjs after`. Captures use exactly
+2560×1440 CSS pixels at DPR 2 and include overview/focus PNGs, a motion preview,
+and performance/geometry diagnostics in `validation/exhibition-27/` (ignored by
+Git). `ATLAS_FORCE_WEBGL1=1` also runs the complete UI check on the legacy path.
+
+Header/title/operator commands fade after 2.4 seconds without pointer or keyboard input and return on activity. Source changes preserve the existing scrolling history. Red trace markers identify actual planetary-reference R > 1; raw source rows are never given an inferred risk threshold.
+
+With the production preview running at 4174, `npm run test:exhibition` checks
+the 27-inch composition, data-centered 4.8-unit zoom, header hide/reveal, source
+history retention, real exceeded-reference markers, camera-denied manual sound,
+the presence gate, decoded audio signal and 45-second idle return. Set
+`ATLAS_WEBKIT_MODULE` to include the legacy WebGL 1 WebKit case. Reports and
+screenshots go to `validation/exhibition-simulation/`.

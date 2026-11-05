@@ -574,6 +574,23 @@ aside { background: rgba(0,0,0,.94); }
 .presence-controls button:disabled { opacity: .5; cursor: wait; }
 .presence-controls small { font-size: 9px; color: #888; }
 .presence-video { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Quiet operator readout; expanded controls sit above the exhibition canvas. */
+#sound-operator { position: fixed; z-index: 65; top: 61px; right: 32px; max-width: calc(100vw - 32px); color: #aaa99f; font: 10px/1.6 var(--mono, monospace); }
+#sound-operator summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; cursor: pointer; list-style: none; padding: 3px 0; }
+#sound-operator summary::-webkit-details-marker { display: none; }
+#sound-operator summary:focus-visible { outline: 1px solid #c2bda9; outline-offset: 4px; }
+#sound-operator kbd { font: inherit; color: #e7dfc8; }
+#sound-operator .sound-shortcuts { color: #77766d; font-size: 9px; }
+#sound-operator[data-mode="ambient"] #sound-mode-status { color: #e7dfc8; }
+.sound-operator-body { margin-top: 8px; padding: 16px; max-width: 410px; margin-left: auto; background: rgba(4,4,5,.98); border: 1px solid #48423a; box-shadow: 0 8px 25px #000; }
+.sound-operator-body p { margin: 0 0 12px; }
+.sound-operator-body label { display: flex; justify-content: space-between; gap: 20px; }
+#ambient-volume { display: block; width: 100%; margin: 12px 0; accent-color: #dbb989; }
+.sound-operator-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.sound-operator-actions button { color: #ece4d1; border: 1px solid #4b463c; padding: 7px; background: #161310; font: inherit; cursor: pointer; }
+#sound-operator .presence-controls { position: static; padding: 12px 0 0; border: 0; border-top: 1px solid #332e29; max-width: none; background: transparent; font: inherit; }
+.data-view #sound-operator { top: 12px; }
+@media (max-width: 600px) { #sound-operator { top: 10px; right: 12px; font-size: 8px; max-width: 55vw; } #sound-operator summary { gap: 0; } #sound-operator .sound-shortcuts { font-size: 7px; } .sound-operator-body { width: 280px; max-width: calc(100vw - 24px); font-size: 10px; } }
 .observation-toolbar { border: 0; }
 .observation-toolbar button, .observation-toolbar .ui-toggle,
 .observation-toolbar button[aria-current="true"],

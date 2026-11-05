@@ -1,5 +1,7 @@
-// Linear gains; time intervals are seconds. No sound controls are added to the UI.
+// Linear gains; time intervals are seconds.
 export const SOUND_CONFIG = {
+  manualAmbientVolume: 0.15,
+  modeFadeSeconds: 0.45,
   primaryFamily: 'detail', // 511418; keep 665957 assets for later comparison.
   enabledFamilies: ['detail', 'micro'],
   volumes: { ambient: 0.16, flow: 0.34, detail: 0.65 },

@@ -8,7 +8,9 @@
     "test": "node --test tests/*.test.js",
     "test:ui": "node scripts/check-ui.mjs",
     "build": "vite build && vite build --mode compat",
-    "test:compat": "node scripts/check-compat.mjs"
+    "test:compat": "node scripts/check-compat.mjs",
+    "test:sound": "node scripts/check-sound.mjs",
+    "test:exhibition": "node scripts/simulate-exhibition.mjs"
   },
   "devDependencies": {
     "playwright": "1.63.0",

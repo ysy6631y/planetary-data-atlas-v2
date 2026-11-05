@@ -1,5 +1,6 @@
 import manifest from './signal-samples.generated.json';
 import { SOUND_CONFIG } from './sound-config.js';
+import { soundShortcut } from './sound-shortcuts.js';
 
 export function createSoundSystem(ambient, overrides = {}) {
   // Configuration contains only JSON values; support Safari before 15.4.
@@ -9,7 +10,11 @@ export function createSoundSystem(ambient, overrides = {}) {
   const samples = new Map(), buffers = new Map(), voices = new Set();
   const history = [], errors = [], inputWindow = [];
   const previousSamples = new Map();
+  const listeners = new Set();
   let context, master, flowBus, detailBus, limiter, loading;
+  let mode = 'auto', playback = 'waiting', playRequest = null, playGeneration = 0;
+  let fadeFrame = 0, fade = null;
+  let recoveryTimer = 0;
   let enabled = true, disposed = false, unlocked = false, suspended = document.hidden, wasRunning = false;
   let present = true, presenceGain = 1;
   let nextFlow = Infinity, nextDetail = Infinity, nextMicro = Infinity, quietUntil = 0;
@@ -19,7 +24,42 @@ export function createSoundSystem(ambient, overrides = {}) {
   const range = ([min, max]) => min + Math.random() * (max - min);
   const seconds = () => performance.now() / 1000;
   const report = message => { if (!errors.includes(message)) { errors.push(message); console.warn('[audio] ' + message); } };
-  ambient.volume = settings.volumes.ambient;
+  // One media element remains connected directly to the speakers. Manual
+  // ambient must work even if Web Audio or camera detection cannot initialize.
+  ambient.loop = true;
+  ambient.volume = 0;
+  const audible = () => enabled && !suspended && !disposed && (mode === 'ambient' || present);
+  const mediaVolume = () => audible() ? (mode === 'ambient' ? settings.manualAmbientVolume : settings.volumes.ambient) : 0;
+  const effectsGain = () => audible() && mode === 'auto' ? 1 : 0;
+  const notify = () => listeners.forEach(listener => listener(snapshot()));
+
+  function finishSilence() {
+    if (!audible()) { ambient.pause(); playGeneration++; playRequest = null; }
+    if (mode !== 'auto' || !present) stopVoices();
+  }
+
+  function fadeToMode(immediate = false, seconds = settings.modeFadeSeconds) {
+    cancelAnimationFrame(fadeFrame); fadeFrame = 0;
+    const duration = immediate ? 0 : seconds * 1000;
+    const destination = mediaVolume(), gainTarget = effectsGain();
+    if (master) {
+      master.gain.cancelScheduledValues(context.currentTime);
+      master.gain.setValueAtTime(master.gain.value, context.currentTime);
+      if (duration) master.gain.setTargetAtTime(gainTarget, context.currentTime, duration / 3000);
+      else master.gain.setValueAtTime(gainTarget, context.currentTime);
+    }
+    fade = { start: performance.now(), from: ambient.volume, to: destination, gainFrom: presenceGain, gainTo: gainTarget, duration };
+    const step = now => {
+      const t = duration ? Math.min(1, Math.max(0, (now - fade.start) / duration)) : 1;
+      const eased = t * t * (3 - 2 * t);
+      ambient.volume = fade.from + (fade.to - fade.from) * eased;
+      presenceGain = fade.gainFrom + (fade.gainTo - fade.gainFrom) * eased;
+      if (t < 1) fadeFrame = requestAnimationFrame(step);
+      else { fadeFrame = 0; fade = null; finishSilence(); notify(); }
+    };
+    if (duration) fadeFrame = requestAnimationFrame(step);
+    else step(performance.now());
+  }
 
   function resetSchedule(now) {
     nextFlow = now + range(settings.flow.first);
@@ -81,7 +121,7 @@ export function createSoundSystem(ambient, overrides = {}) {
     if (!Constructor) { report('Web Audio unavailable; ambient remains available.'); return; }
     try { context = new Constructor({ latencyHint: 'interactive' }); }
     catch (error) { report('Audio context: ' + error.message); return; }
-    master = context.createGain(); master.gain.value = enabled ? presenceGain : 0;
+    master = context.createGain(); master.gain.value = effectsGain();
     limiter = context.createDynamicsCompressor();
     limiter.threshold.value = -12; limiter.knee.value = 6; limiter.ratio.value = 10;
     limiter.attack.value = .006; limiter.release.value = .16;
@@ -91,22 +131,53 @@ export function createSoundSystem(ambient, overrides = {}) {
     limiter.connect(master).connect(context.destination);
   }
 
-  function playAmbient() {
-    if (!enabled || disposed || !present || document.hidden) return;
-    ambient.play()?.catch(error => {
-      if (!['NotAllowedError', 'AbortError'].includes(error.name)) report('Ambient: ' + error.message);
-    });
+  function playAmbient(prime = false) {
+    if (!enabled || disposed || suspended || (!prime && !audible())) return;
+    if (playRequest || (!ambient.paused && playback === 'playing')) return;
+    const generation = ++playGeneration;
+    playback = 'starting';
+    try {
+      // This call must stay synchronous inside the key/click event. Awaiting
+      // resume(), sample fetching, or camera permission loses Safari activation.
+      if (ambient.error) ambient.load();
+      const request = ambient.play();
+      playRequest = Promise.resolve(request).then(() => {
+        if (generation !== playGeneration || disposed) return;
+        playRequest = null;
+        if (!audible() && !fade) ambient.pause();
+        else playback = ambient.paused ? 'waiting' : 'playing';
+        notify();
+      }, error => {
+        if (generation !== playGeneration || disposed) return;
+        playRequest = null;
+        playback = error.name === 'NotAllowedError' ? 'blocked' : error.name === 'AbortError' ? 'waiting' : 'error';
+        if (!['NotAllowedError', 'AbortError'].includes(error.name)) report('Ambient: ' + error.message);
+        notify();
+      });
+    } catch (error) { playback = 'error'; report('Ambient: ' + error.message); }
+    notify();
   }
 
-  function unlock() {
+  function unlock(event) {
     if (!enabled || disposed) return;
-    ensureContext(); unlocked = true;
+    unlocked = true;
+    // HTML audio is the independent safety path, even without AudioContext.
+    playAmbient(Boolean(event?.isTrusted));
+    ensureContext();
     if (context && !document.hidden) context.resume().then(() => {
       // Safari may keep resume pending until a real user gesture. Do not fetch
       // or decode the sample bank while browser audio is still blocked.
       if (!disposed && context.state === 'running') void loadSamples();
     }).catch(error => report(error.message));
-    playAmbient();
+    notify();
+  }
+
+  function keyboard(event) {
+    const command = soundShortcut(event);
+    if (command) {
+      event.preventDefault();
+      setMode(command === 'ambient' && mode === 'ambient' ? 'auto' : command, event);
+    } else if (!event.repeat) unlock(event);
   }
 
   function choose(family) {
@@ -122,7 +193,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   }
 
   function playSample(sample, gainScale = 1, now = seconds(), trigger = 'autonomous') {
-    if (!sample || !enabled || disposed || suspended || context?.state !== 'running') return false;
+    if (!sample || !enabled || disposed || suspended || mode !== 'auto' || !present || context?.state !== 'running') return false;
     if (!settings.enabledFamilies.includes(sample.family)) return false;
     if (voices.size >= settings.maxVoices) return false;
     const previous = history[history.length - 1];
@@ -176,14 +247,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   function update(nowMs, dt, inputSpeed = 0) {
     const now = nowMs / 1000;
     if (disposed || !enabled || suspended) return;
-    const target = present ? 1 : 0;
-    presenceGain += Math.sign(target - presenceGain) * Math.min(Math.abs(target - presenceGain), Math.max(0, dt) / (present ? .8 : 1.5));
-    ambient.volume = settings.volumes.ambient * presenceGain;
-    if (master) master.gain.setTargetAtTime(presenceGain, context.currentTime, .03);
-    if (!present) {
-      if (presenceGain === 0) { stopVoices(); ambient.pause(); }
-      return;
-    }
+    if (mode !== 'auto' || !present) return;
     updateActivity(now, dt, inputSpeed);
     if (context?.state !== 'running' || !samples.size) return;
     if (!wasRunning) { resetSchedule(now); wasRunning = true; }
@@ -221,71 +285,113 @@ export function createSoundSystem(ambient, overrides = {}) {
     }
   }
 
-  function setEnabled(value) {
-    if (disposed) return;
-    enabled = Boolean(value); ambient.muted = !enabled;
-    if (master) master.gain.value = enabled ? presenceGain : 0;
-    if (!enabled) { stopVoices(); clearActivity(); ambient.pause(); context?.suspend().catch(() => {}); wasRunning = false; }
-    else {
-      resetSchedule(seconds()); playAmbient();
-      if (unlocked && context && !document.hidden) context.resume().catch(error => report(error.message));
-    }
+  function setMode(value, event) {
+    if (disposed || !['auto', 'ambient', 'muted'].includes(value)) return;
+    const changed = mode !== value;
+    mode = value; enabled = mode !== 'muted';
+    // Muting is immediate. Keep the context alive to avoid an asynchronous
+    // suspend racing the next key's resume on older Safari.
+    ambient.muted = !enabled;
+    if (changed) { clearActivity(); wasRunning = false; }
+    fadeToMode(!enabled);
+    if (!enabled) { stopVoices(); ambient.pause(); }
+    else unlock(event);
+    notify();
   }
 
+  function setEnabled(value) { setMode(value ? 'auto' : 'muted'); }
+
   function setVolumes(volumes) {
+    if (disposed) return;
     for (const key of ['ambient', 'flow', 'detail']) if (Number.isFinite(volumes[key])) settings.volumes[key] = Math.min(1, Math.max(0, volumes[key]));
-    ambient.volume = settings.volumes.ambient * presenceGain; lastDetailGain = -1;
+    lastDetailGain = -1; fadeToMode();
     if (context && !disposed) flowBus.gain.setTargetAtTime(settings.volumes.flow, context.currentTime, .1);
+    notify();
+  }
+
+  function setAmbientVolume(value) {
+    if (!Number.isFinite(value) || disposed) return;
+    settings.manualAmbientVolume = Math.min(1, Math.max(0, value));
+    fadeToMode(); notify();
   }
 
   function setPresence(value, immediate = false) {
+    if (disposed) return;
     const changed = present !== Boolean(value);
     present = Boolean(value);
-    if (immediate) {
-      presenceGain = present ? 1 : 0;
-      ambient.volume = settings.volumes.ambient * presenceGain;
-      if (master) master.gain.value = enabled ? presenceGain : 0;
-      if (!present) { stopVoices(); ambient.pause(); }
+    // Camera resets, permission failures and lost faces cannot mute Ambient.
+    if (mode !== 'auto') { notify(); return; }
+    if (changed || immediate) {
+      clearActivity(); wasRunning = false;
+      fadeToMode(immediate, present ? .8 : 1.5);
+      if (present && unlocked) playAmbient();
+      notify();
     }
-    if (changed) { clearActivity(); wasRunning = false; }
-    if (present && unlocked) playAmbient();
   }
 
   function visibilityChanged() {
+    if (disposed) return;
     suspended = document.hidden; stopVoices(); clearActivity(); wasRunning = false;
-    if (suspended) ambient.pause();
-    else if (enabled && unlocked) playAmbient();
-    if (suspended) context?.suspend().catch(() => {});
-    else if (enabled && unlocked) context?.resume().catch(error => report(error.message));
+    fadeToMode(suspended);
+    if (suspended) { ambient.pause(); context?.suspend().catch(() => {}); }
+    else if (enabled && unlocked) unlock();
+    notify();
   }
   function pageHidden(event) {
     if (!event.persisted) dispose();
-    else { stopVoices(); clearActivity(); context?.suspend().catch(() => {}); ambient.pause(); wasRunning = false; }
+    else {
+      suspended = true; fadeToMode(true); stopVoices(); clearActivity();
+      context?.suspend().catch(() => {}); ambient.pause(); wasRunning = false;
+    }
   }
-  function pageShown() { suspended = document.hidden; if (enabled) { playAmbient(); if (unlocked) context?.resume().catch(() => {}); } }
-  function ambientError() { report('Ambient load failed: ' + (ambient.currentSrc || ambient.src)); }
-  function dispose() {
-    if (disposed) return;
-    disposed = true; controller.abort(); stopVoices(); clearActivity(); ambient.pause();
-    window.removeEventListener('pointerdown', unlock, true); window.removeEventListener('keydown', unlock, true);
-    window.removeEventListener('pagehide', pageHidden); window.removeEventListener('pageshow', pageShown);
-    document.removeEventListener('visibilitychange', visibilityChanged); ambient.removeEventListener('error', ambientError);
-    if (context) { master.disconnect(); flowBus.disconnect(); detailBus.disconnect(); limiter.disconnect(); context.close().catch(() => {}); }
-    buffers.clear(); samples.clear();
+  function pageShown() { visibilityChanged(); }
+  function ambientError() { playback = 'error'; report('Ambient load failed: ' + (ambient.currentSrc || ambient.src)); notify(); }
+  function mediaChanged(event) {
+    if (event.type === 'playing') playback = 'playing';
+    else if (event.type === 'waiting' || event.type === 'stalled') playback = 'buffering';
+    else if (event.type === 'pause' && playback !== 'blocked' && playback !== 'error') playback = 'waiting';
+    // An external media interruption must not leave manual Ambient silently
+    // stopped. Reuse this player; an intentional mute or hidden page wins.
+    if ((event.type === 'pause' || event.type === 'ended') && mode === 'ambient' && audible() && unlocked) {
+      clearTimeout(recoveryTimer);
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = 0;
+        if (mode === 'ambient' && audible() && unlocked && ambient.paused && !ambient.error && playback !== 'blocked') playAmbient();
+      }, 200);
+    }
+    notify();
   }
-  window.addEventListener('pointerdown', unlock, true); window.addEventListener('keydown', unlock, true);
-  window.addEventListener('pagehide', pageHidden); window.addEventListener('pageshow', pageShown);
-  document.addEventListener('visibilitychange', visibilityChanged); ambient.addEventListener('error', ambientError);
-  playAmbient();
-  return {
-    update, setEnabled, setVolumes, setPresence, unlock, dispose,
-    ready: () => loading || Promise.resolve(),
-    audition: id => playSample(samples.get(id)),
-    snapshot: () => ({
-      enabled, disposed, present, presenceGain, contextState: context?.state || 'not-created', loaded: samples.size, expected: manifest.samples.length,
+  const mediaEvents = ['playing', 'waiting', 'stalled', 'pause', 'ended', 'loadedmetadata'];
+  function snapshot() {
+    return {
+      mode, enabled, disposed, suspended, present, presenceGain, unlocked,
+      playback, ambientPaused: ambient.paused, ambientMuted: ambient.muted,
+      ambientVolume: ambient.volume, manualAmbientVolume: settings.manualAmbientVolume,
+      ambientTime: ambient.currentTime, ambientReadyState: ambient.readyState,
+      contextState: context?.state || 'not-created', loaded: samples.size, expected: manifest.samples.length,
       voices: voices.size, peakVoices, activity, windowActivity, inputFrames: inputWindow.length, nextFlow, nextDetail, nextMicro, quietUntil,
       activeVoices: [...voices].map(voice => ({ family: voice.family, cutoff: voice.filter.frequency.value, targetCutoff: voice.targetCutoff })),
       volumes: { ...settings.volumes }, history: [...history], errors: [...errors],
-    }),
+    };
+  }
+  function subscribe(listener) { listeners.add(listener); listener(snapshot()); return () => listeners.delete(listener); }
+  function dispose() {
+    if (disposed) return;
+    disposed = true; controller.abort(); cancelAnimationFrame(fadeFrame); clearTimeout(recoveryTimer); stopVoices(); clearActivity(); ambient.pause();
+    window.removeEventListener('pointerdown', unlock, true); window.removeEventListener('keydown', keyboard, true);
+    window.removeEventListener('pagehide', pageHidden); window.removeEventListener('pageshow', pageShown);
+    document.removeEventListener('visibilitychange', visibilityChanged); ambient.removeEventListener('error', ambientError);
+    mediaEvents.forEach(type => ambient.removeEventListener(type, mediaChanged));
+    if (context) { master.disconnect(); flowBus.disconnect(); detailBus.disconnect(); limiter.disconnect(); context.close().catch(() => {}); }
+    buffers.clear(); samples.clear(); listeners.clear();
+  }
+  window.addEventListener('pointerdown', unlock, true); window.addEventListener('keydown', keyboard, true);
+  window.addEventListener('pagehide', pageHidden); window.addEventListener('pageshow', pageShown);
+  document.addEventListener('visibilitychange', visibilityChanged); ambient.addEventListener('error', ambientError);
+  mediaEvents.forEach(type => ambient.addEventListener(type, mediaChanged));
+  return {
+    update, setEnabled, setMode, setVolumes, setAmbientVolume, setPresence, unlock, dispose, subscribe, snapshot,
+    ready: () => loading || Promise.resolve(),
+    audition: id => playSample(samples.get(id)),
   };
 }

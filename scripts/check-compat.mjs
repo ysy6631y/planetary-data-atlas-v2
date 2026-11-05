@@ -35,6 +35,7 @@ try {
       const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 2 });
       const errors = [], failures = [], requests = [];
       page.on('pageerror', error => errors.push(error.message));
+      page.on('console', message => { if (message.type() === 'error' && /THREE\.WebGLProgram|VALIDATE_STATUS|shader error|INVALID_(?:VALUE|OPERATION)/i.test(message.text())) errors.push(message.text()); });
       page.on('response', response => { if (response.status() >= 400) failures.push(`${response.status()} ${response.url()}`); });
       page.on('request', request => requests.push(request.url()));
       await page.addInitScript(mode => {
@@ -69,7 +70,9 @@ try {
         const graphics = await page.evaluate(() => window.__PB_DEBUG__.graphics());
         assert.equal(graphics.legacy, mode === 'webgl1');
         assert(graphics.calls > 0, 'GPU submitted actual draw calls');
-        assert(graphics.width * graphics.height <= (mode === 'webgl1' ? 1800000 : 4000000) + 1);
+        assert(graphics.width * graphics.height <= 16000000 + 1);
+        assert(graphics.strokes.minimumWidth >= 1.1);
+        assert(graphics.strokes.paths > 30);
         assert.equal(requests.some(url => url.includes('/compat/app.js')), mode === 'webgl1');
         // Exercise actual source picking, controls, and the extent geometry.
         await page.locator('#analysis-toggle').click();

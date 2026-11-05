@@ -3,19 +3,33 @@ export function mountExhibitionUI() {
   const rail = document.createElement('div');
   rail.id = 'exhibition-rail';
   rail.innerHTML = `<section id="data-stream" aria-label="System data stream">
-    <div class="stream-heading"><h2>DATA STREAM</h2><span id="stream-mode">AUTO</span></div>
-    <div class="stream-key"><span>EVENT / SYSTEM ACTIVITY</span><span>TRACE / SOURCE READOUT</span></div>
-    <div id="stream-lines" role="log" aria-live="off" aria-label="Recent system events and source readout"></div>
-    <div class="stream-footer"><span id="stream-stage" role="status">INITIALIZING</span><span id="stream-count">0 RECORDS</span></div>
+    <div class="stream-window"><div id="stream-lines" role="log" aria-live="off" aria-label="Recent system events and source readout"></div></div>
+    <span id="stream-mode" hidden>AUTO</span><span id="stream-stage" hidden>INITIALIZING</span><span id="stream-count" hidden>0 RECORDS</span>
   </section>`;
+  const legend = document.querySelector('.legend');
+  legend.setAttribute('aria-label', 'Color meanings: baseline, boundary, high risk');
+  document.querySelector('.scene-bottom').append(legend);
   const panel = document.getElementById('local-field');
   const primary = panel.querySelector('.dataset-picker');
   const summary = panel.querySelector('.dataset-summary');
   panel.insertBefore(primary, document.getElementById('analysis-body'));
   panel.insertBefore(summary, document.getElementById('analysis-body'));
   panel.querySelector('.eyebrow').textContent = 'DATA SELECTION';
-  rail.append(panel, document.getElementById('inspector'));
+  const controls = document.createElement('div');
+  controls.id = 'data-controls';
+  controls.append(panel, document.getElementById('inspector'));
+  rail.append(controls);
   document.getElementById('viewport').append(rail);
+  const toggle = document.createElement('button');
+  toggle.type = 'button'; toggle.id = 'data-controls-toggle'; toggle.textContent = 'DATA';
+  toggle.title = 'Open data selection and readout';
+  toggle.setAttribute('aria-controls', 'data-controls'); toggle.setAttribute('aria-expanded', 'false');
+  toggle.onclick = () => {
+    const open = !document.body.classList.contains('data-controls-open');
+    document.body.classList.toggle('data-controls-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+  };
+  document.querySelector('.observation-toolbar').prepend(toggle);
   document.getElementById('index-trigger').hidden = true;
   document.getElementById('boundaries').classList.add('open');
 }

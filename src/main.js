@@ -14,8 +14,7 @@ import { spatialize, validatePosition, GPU_TOLERANCE } from './spatial.js';
 import { deepFreeze, observe, wheelDistance, MIN_OBSERVATION_DISTANCE, MAX_OBSERVATION_DISTANCE } from './observation.js';
 import { datasetPresentation, axisLabel } from './dataset-presentation.js';
 import { enhanceSelect, closeSelects } from './select-control.js';
-import { createSoundSystem } from './sound-system.js';
-import { createPresenceDetector } from './presence-detector.js';
+import { mountSoundOperator } from './sound-operator.js';
 import './style.css';
 import './exhibition.css';
 import { mountExhibitionUI } from './exhibition-ui.js';
@@ -23,6 +22,7 @@ import { createDataStream } from './data-stream.js';
 import { createDataProcess } from './data-process.js';
 import { createAutoExploration } from './auto-exploration.js';
 import { renderPixelRatio } from './graphics-support.js';
+import { createExhibitionLines } from './exhibition-lines.js';
 mountExhibitionUI();
 const dataStream = createDataStream();
 const dataProcess = createDataProcess({ onChange: dataStream.process });
@@ -65,11 +65,7 @@ reducedMotion.addEventListener('change', () => {
 
 const $ = (id) => document.getElementById(id);
 const viewDistanceOutput = $('camera-distance');
-const sound = createSoundSystem($('ambient-track'));
-const presence = createPresenceDetector({ button: $('presence-start'), status: $('presence-status'), sound });
-if (import.meta.hot) import.meta.hot.dispose(() => presence.dispose());
-window.__PB_AUDIO__ = sound;
-if (import.meta.hot) import.meta.hot.dispose(() => sound.dispose());
+const { sound } = mountSoundOperator();
 const fmt = (n) => n === null || n === undefined ? 'NOT QUANTIFIED' : String(Number(Number(n).toPrecision(10)));
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const shortNames = ['CLIMATE', 'BIOSPHERE', 'LAND SYSTEM', 'FRESHWATER', 'BIOGEOCHEMICAL', 'OCEAN', 'AEROSOLS', 'OZONE', 'NOVEL ENTITIES'];
@@ -154,7 +150,7 @@ const graphics = window.__ATLAS_GRAPHICS__;
 try {
   renderer = new THREE.WebGLRenderer({
     ...(graphics ? { canvas: graphics.canvas, context: graphics.context } : {}),
-    antialias: false, preserveDrawingBuffer: false,
+    antialias: true, preserveDrawingBuffer: false,
   });
   // Keep the canvas background at true black regardless of browser alpha or
   // compositing behavior; the only visible lift should come from the scene.
@@ -183,7 +179,7 @@ let soundPreviousDistance = orbit.getDistance();
 orbit.addEventListener('start', () => { soundInputActive = true; });
 orbit.addEventListener('end', () => { soundInputActive = false; soundInputUntil = performance.now() + 350; });
 orbit.enableDamping = true;
-orbit.dampingFactor = 0.07;
+orbit.dampingFactor = 0.16;
 orbit.enablePan = false;
 orbit.zoomToCursor = false;
 orbit.minDistance = MIN_OBSERVATION_DISTANCE;
@@ -229,32 +225,22 @@ const colorFor = () => 0xf4f0e9;
 const lineColorFor = () => 0x77716b;
 // Keep the dark observatory background while bringing the data signals closer
 // to the bright, pixel-lit reference image.
-const lightOpacityFor = (r) => r > 2 ? 0.82 : r > 1 ? 0.64 : 0.38;
+const lightOpacityFor = (r) => r > 2 ? 1 : r > 1 ? 0.92 : 0.82;
 const glyph = new THREE.SphereGeometry(0.047, 16, 12);
 
 function rasterSignalTexture({ core, middle, outer }) {
-  const size = 17;
+  const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const context = canvas.getContext('2d');
-  const toRgb = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
-  const colors = [toRgb(core), toRgb(middle), toRgb(outer)];
-  const image = context.createImageData(size, size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const radius = Math.hypot(x - 8, y - 8);
-    const band = radius < 2.55 ? 0 : radius < 4.2 ? 1 : 2;
-    const uneven = ((x * 3 + y * 5) % 4) === 0 ? 0.72 : 1;
-    const alpha = radius < 2.55 ? 255 : radius < 4.2 ? 214 : radius < 6.7 ? Math.round(112 * uneven) : 0;
-    const offset = (y * size + x) * 4;
-    image.data[offset] = colors[band][0];
-    image.data[offset + 1] = colors[band][1];
-    image.data[offset + 2] = colors[band][2];
-    image.data[offset + 3] = alpha;
-  }
-  context.putImageData(image, 0, 0);
+  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, core); gradient.addColorStop(.14, core);
+  gradient.addColorStop(.25, middle); gradient.addColorStop(.42, outer);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  context.fillStyle = gradient; context.fillRect(0, 0, size, size);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
   texture.generateMipmaps = false;
   return texture;
 }
@@ -342,6 +328,7 @@ for (const control of quantitative) {
     // to read through overlaps while preserving the dark negative space.
     new THREE.LineBasicMaterial({ color: 0x9a3b34, transparent: true, opacity: 0.34 }),
   );
+  orbitLine.userData.strokeWidth = 1.9;
   orbitLine.userData.controlId = control.id;
   orbitLine.userData.groupId = control.groupId;
   orbitLine.userData.r = control.r;
@@ -411,16 +398,22 @@ const starField = new THREE.Points(starGeometry, new THREE.PointsMaterial({
 starField.renderOrder = -1;
 scene.add(starField);
 
-// The origin remains a mathematical anchor for validation, never a visible node.
+// The stellar light marks the observation origin, not a measured data value.
 const origin = new THREE.Object3D();
 scene.add(origin);
+const stellarLight = new THREE.Sprite(new THREE.SpriteMaterial({ map: redGlow, color: 0xffaa85, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, opacity: .9 }));
+const stellarCore = new THREE.Sprite(new THREE.SpriteMaterial({ map: whiteSignal, color: 0xffefcc, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+stellarLight.renderOrder = 5; stellarCore.renderOrder = 6;
+scene.add(stellarLight, stellarCore);
 const referenceGeometry = [];
 function shell(radius, color, opacity = 0.66) {
   const root = new THREE.Group();
   const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
   function addCircle(points) {
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    root.add(new THREE.LineLoop(geometry, material));
+    const circle = new THREE.LineLoop(geometry, material);
+    circle.userData.strokeWidth = radius === 2 ? 2.2 : 1.6;
+    root.add(circle);
     referenceGeometry.push({ radius, geometry });
   }
   for (let meridian = 0; meridian < 6; meridian++) {
@@ -439,8 +432,9 @@ function shell(radius, color, opacity = 0.66) {
   scene.add(root);
   return root;
 }
-const pbShell = shell(1, 0xc9c3b9, 0.74);
-const hrShell = shell(2, 0xe34a3d);
+const pbShell = shell(1, 0xe6e0d6, 0.88);
+const hrShell = shell(2, 0xff604a, 0.88);
+const exhibitionLines = createExhibitionLines(scene, graphics?.context.getContextAttributes()?.antialias ?? true);
 const selectionRing = new THREE.Mesh(new THREE.RingGeometry(0.078, 0.087, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false }));
 selectionRing.renderOrder = 10;
 scene.add(selectionRing);
@@ -577,7 +571,7 @@ function scheduleInstrumentRead() {
   $('read-status').classList.remove('reading');
   void $('read-status').offsetWidth;
   $('read-status').classList.add('reading');
-  readTimer = setTimeout(updateInstrument, 200);
+  readTimer = setTimeout(updateInstrument, 45);
 }
 
 function inspect() {
@@ -695,8 +689,9 @@ async function openDataset(id) {
     await afterSceneFrame();
     if (request !== datasetRequest || selectedGroup.id !== groupId) return;
     process('READY', data.records.length);
-    dataStream.dataset(data, renderedPositions);
+    dataStream.dataset(data, renderedPositions, index => projectReadout(climate, index, renderedPositions));
     datasetReadyRequest = request;
+    if (data.observations.length) focusSelected();
     if (data.kind === 'records' && data.records.length) {
       clearTimeout(readTimer);
       inspectedRecord = data.records[0]; $('inspector').hidden = false; inspectCountry(inspectedRecord);
@@ -767,6 +762,12 @@ function selectBoundary(group) {
   closeIndex();
 }
 
+function referenceReadout(item) {
+  return () => {
+    const position = item.position ? meshes.get(item.id).getWorldPosition(new THREE.Vector3()).toArray().map(value => value.toFixed(3)).join(' / ') : 'NOT SPATIALIZED';
+    return { message: `REFERENCE / ${codeFor(item)} / R ${item.r ?? 'NOT QUANTIFIED'}${item.r > 1 ? ' / BOUNDARY EXCEEDED' : ''} / DISPLAY XYZ ${position}`, exceeded: item.r != null && item.r > 1 };
+  };
+}
 function select(control, group, { openPanel = true, autoLoad = true, scope = 'control' } = {}) {
   selectionScope = scope;
   setHoveredControl(null);
@@ -778,6 +779,8 @@ function select(control, group, { openPanel = true, autoLoad = true, scope = 'co
   orbit.autoRotate = false;
   for (const layer of overviewLayers.values()) layer.root.visible = false;
   selected = control; selectedGroup = group;
+  setDataControlsOpen(exploration.getState().mode === 'MANUAL');
+  dataStream.reference(group.controls.map(referenceReadout));
   dataStream.selection(`${group.name.toUpperCase()} / ${control?.raw.control_label ?? 'BOUNDARY'}`, exploration.getState().mode);
   if (openPanel) openBoundary(group, { autoLoad });
   climate.select(-1);
@@ -792,13 +795,13 @@ function select(control, group, { openPanel = true, autoLoad = true, scope = 'co
   for (const [id, line] of lines) {
     const active = id === control?.id;
     line.material.color.setHex(active ? 0xdf3d35 : lineColorFor());
-    line.material.opacity = active ? 0.82 : 0.3;
+    line.material.opacity = active ? 0.95 : 0.4;
   }
   for (const [id, orbitLine] of riskOrbits) {
     const active = id === control?.id;
     const groupActive = orbitLine.userData.groupId === group.id;
     orbitLine.material.color.setHex(active ? 0xdf3d35 : groupActive ? 0xb5afa8 : 0x817b75);
-    orbitLine.material.opacity = active ? 0.86 : groupActive ? 0.5 : 0.34;
+    orbitLine.material.opacity = active ? 0.96 : groupActive ? 0.72 : 0.5;
   }
   for (const [id, point] of meshes) {
     const active = id === control?.id;
@@ -861,6 +864,17 @@ function liveValidation() {
 const maxRadius = Math.max(...quantitative.map((c) => c.r));
 const overviewDirection = new THREE.Vector3(1.3, 0.8, 1.2).normalize();
 let focusTransition = null;
+function exhibitionCameraDistance() {
+  // 117% of the original 6.8-unit view, while leaving the complete R=2 shell
+  // inside the central corridor. Narrow/tall windows back away when necessary.
+  const base = Math.sqrt(4 + (6.8 ** 2 - 4) / 1.17 ** 2);
+  const anchorX = width * .42;
+  const left = $('boundaries').getBoundingClientRect().right + 28;
+  const right = $('exhibition-rail').offsetLeft - 28;
+  const radiusPixels = Math.max(80, Math.min(height * .395, anchorX - left, right - anchorX) * .97);
+  const focalPixels = height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  return Math.max(base, Math.sqrt(4 + (2 * focalPixels / radiusPixels) ** 2));
+}
 function fit(radius = maxRadius) {
   const fromPosition = camera.position.clone(), fromTarget = orbit.target.clone();
   if (climate.active) $('inspector').hidden = true;
@@ -874,17 +888,17 @@ function fit(radius = maxRadius) {
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), overviewDirection).normalize();
     const up = new THREE.Vector3().crossVectors(overviewDirection, right).normalize();
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const tanH = tanV * camera.aspect;
+    const tanH = tanV * (isExhibition ? $('viewport').clientWidth / height : camera.aspect);
     distance = Math.max(2.5 / Math.sin(halfFov), ...quantitative.map((c) => {
       const p = new THREE.Vector3(...c.position);
       return p.dot(overviewDirection) + Math.max(Math.abs(p.dot(right)) / (tanH * 0.78), Math.abs(p.dot(up)) / (tanV * 0.66)) + 0.8;
     }));
   }
-  camera.position.copy(overviewDirection).multiplyScalar(Math.min(85, distance));
+  camera.position.copy(overviewDirection).multiplyScalar(isExhibition ? exhibitionCameraDistance() : Math.min(85, distance) / 1.35);
   const toPosition = camera.position.clone();
   orbit.update(); orbit.enableDamping = true;
   if (!reducedMotion.matches) {
-    focusTransition = { startedAt: performance.now(), duration: 750, fromPosition, fromTarget, toPosition, toTarget: new THREE.Vector3() };
+    focusTransition = { startedAt: performance.now(), duration: 380, fromPosition, fromTarget, toPosition, toTarget: new THREE.Vector3() };
     camera.position.copy(fromPosition); orbit.target.copy(fromTarget);
     orbit.enabled = false;
   }
@@ -897,6 +911,7 @@ async function enterOverview() {
   if (overviewReady) process('READY');
   const initializationCurrent = () => overview && !overviewReady;
   overview = true; selected = null;
+  setDataControlsOpen(false);
   $('fit').hidden = true;
   updateDataR();
   motionPaused = false;
@@ -922,21 +937,21 @@ async function enterOverview() {
   document.querySelectorAll('[data-control], [data-group]').forEach((el) => el.setAttribute('aria-pressed', 'false'));
   for (const label of groupLabels.values()) label.classList.remove('selected');
   for (const link of relatedLinks.values()) link.visible = false;
-  for (const line of lines.values()) { line.material.color.setHex(lineColorFor()); line.material.opacity = .3; }
+  for (const line of lines.values()) { line.material.color.setHex(lineColorFor()); line.material.opacity = .4; }
   for (const line of riskOrbits.values()) {
     const exceeded = line.userData.r > 1;
     line.material.color.setHex(exceeded ? 0xdf5148 : 0xc9c4bc);
-    line.material.opacity = exceeded ? .56 : .48;
+    line.material.opacity = exceeded ? .82 : .72;
   }
   for (const [id, point] of meshes) {
     const exceeded = quantitative.find(control => control.id === id).r > 1;
     point.material.color.setHex(point.userData.baseColor);
     point.userData.signal.material.map = exceeded ? redSignal : whiteSignal;
-    point.userData.signal.material.opacity = exceeded ? .96 : .64;
+    point.userData.signal.material.opacity = 1;
     point.userData.signal.material.needsUpdate = true;
     // A restrained use of the existing glow gives exceeded signals a light core
     // in overview without lifting the background or brightening orbit guides.
-    point.userData.glow.material.opacity = exceeded ? .12 : 0;
+    point.userData.glow.material.opacity = exceeded ? .42 : .15;
   }
   fit();
   try {
@@ -954,7 +969,9 @@ async function enterOverview() {
         }
       }
       overviewLayers.get(group.id).root.visible = overview;
+      if (overview) { const layer = overviewLayers.get(group.id), positions = layer.positions; dataStream.dataset(layer.data, positions, index => projectReadout(layer, index, positions)); }
     }
+    if (overview) dataStream.reference(quantitative.map(referenceReadout), { preserveSource: true });
     await afterSceneFrame();
     if (overview) process?.('READY', [...overviewLayers.values()].reduce((total, layer) => total + layer.data.records.length, 0));
     overviewReady = true; overviewError = null;
@@ -966,8 +983,13 @@ async function enterOverview() {
 }
 $('fit').addEventListener('click', () => void enterOverview());
 function focusSelected() {
+  if (climate.active && datasetFull && datasetReadyRequest === datasetRequest && climate.positions.length) {
+    const target = climate.selectedIndex >= 0 ? climate.worldPosition(climate.selectedIndex) : climate.root.localToWorld(climate.positions.reduce((sum, position) => sum.add(new THREE.Vector3(...position)), new THREE.Vector3()).multiplyScalar(1 / climate.positions.length));
+    focusAt(target, climate.selectedIndex >= 0 ? 3.4 : 4.8);
+    return;
+  }
   if (!selected || selected.r === null) { focusGroup(selectedGroup); return; }
-  focusAt(meshes.get(selected.id).getWorldPosition(new THREE.Vector3()), hasLocalData(selectedGroup) ? 6.8 : 2.5);
+  focusAt(meshes.get(selected.id).getWorldPosition(new THREE.Vector3()), hasLocalData(selectedGroup) ? 5.3 : 2.5);
 }
 function anchorLocalField() {
   scene.updateMatrixWorld(true);
@@ -983,11 +1005,20 @@ function anchorLocalField() {
   attribute.needsUpdate = true;
   climateChapterLink.computeLineDistances();
 }
+function projectReadout(layer, index, positions = layer.positions) {
+  if (!positions[index]) return null;
+  const world = layer.root.localToWorld(new THREE.Vector3(...positions[index]));
+  const projected = world.clone().project(camera);
+  return { x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2,
+    depth: -world.applyMatrix4(camera.matrixWorldInverse).z,
+    visible: Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1 && projected.z > -1 && projected.z < 1,
+    selected: !overview && climate.selectedIndex === index };
+}
 function focusGroup(group) {
   const points = group.controls.filter((control) => control.position)
     .map((control) => meshes.get(control.id).getWorldPosition(new THREE.Vector3()));
   const target = groupWorldTarget(group);
-  if (hasLocalData(group)) { climate.root.position.copy(target); focusAt(target, 6.8); return; }
+  if (hasLocalData(group)) { climate.root.position.copy(target); focusAt(target, 5.3); return; }
   if (!points.length) { focusAt(target, 3.2); return; }
   focusAt(target, Math.max(3.2, ...points.map((point) => point.distanceTo(target) * 3.2)));
 }
@@ -998,7 +1029,7 @@ function focusAt(target, distance = 2.5) {
   const direction = camera.position.clone().sub(orbit.target).normalize();
   focusTransition = {
     startedAt: performance.now(),
-    duration: reducedMotion.matches ? 1 : 950,
+    duration: reducedMotion.matches ? 1 : 380,
     fromPosition: camera.position.clone(),
     fromTarget: orbit.target.clone(),
     toPosition: target.clone().addScaledVector(direction, distance),
@@ -1048,6 +1079,7 @@ function inspectCountry(record = null) {
   const wasOpen = !$('inspector').hidden;
   const row = record ?? climateField.observations[climate.selectedIndex];
   if (!row) return;
+  if (exploration.getState().mode === 'MANUAL') setDataControlsOpen(true);
   inspectedRecord = row;
   dataStream.selection(`SOURCE ROW ${row.sourceRow} / ${row.code}`, exploration.getState().mode);
   $('source-record').value = String(row.sourceRow);
@@ -1168,11 +1200,20 @@ renderer.domElement.addEventListener('dblclick', (event) => {
   if (local) focusAt(climate.worldPosition(local.index), 5);
 });
 
-let width = 1, height = 1;
+let width = 1, height = 1, qualityScale = 1, isExhibition = false;
+let qualitySamples = 0, qualityElapsed = 0, qualityLastCheck = performance.now();
 function resize() {
-  width = Math.max(1, $('viewport').clientWidth); height = Math.max(1, $('viewport').clientHeight);
-  renderer.setPixelRatio(renderPixelRatio(width, height, window.devicePixelRatio, graphics?.legacy));
+  const viewportWidth = $('viewport').clientWidth;
+  isExhibition = viewportWidth >= 1700 && !document.body.classList.contains('ui-hidden');
+  // Draw behind the translucent console as well. The same camera offset keeps
+  // the atlas at its exhibition anchor without a hard canvas edge at the panel.
+  width = Math.max(1, viewportWidth);
+  height = Math.max(1, $('viewport').clientHeight);
+  renderer.setPixelRatio(renderPixelRatio(width, height, window.devicePixelRatio, graphics?.legacy) * qualityScale);
   renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
+  if (isExhibition) camera.setViewOffset(width, height, width / 2 - viewportWidth * .42, height * .06, width, height);
+  else camera.clearViewOffset();
+  exhibitionLines.resize(width, height);
 }
 new ResizeObserver(resize).observe($('viewport'));
 function showReadoutTab(id) {
@@ -1216,6 +1257,10 @@ function setAnalysisExpanded(expanded) {
 }
 $('analysis-toggle').addEventListener('click', () => setAnalysisExpanded($('analysis-body').hidden));
 $('close-inspector').addEventListener('click', () => { $('inspector').hidden = true; });
+function setDataControlsOpen(open) {
+  document.body.classList.toggle('data-controls-open', open);
+  $('data-controls-toggle').setAttribute('aria-expanded', String(open));
+}
 const uiToggle = $('ui-toggle');
 function setUiHidden(hidden) {
   document.body.classList.toggle('ui-hidden', hidden);
@@ -1225,17 +1270,9 @@ function setUiHidden(hidden) {
   uiToggle.title = hidden ? 'Show interface' : 'Hide interface';
   if (hidden) closeIndex();
   if (hidden) closeSelects();
+  resize();
 }
 uiToggle.addEventListener('click', () => setUiHidden(!document.body.classList.contains('ui-hidden')));
-const soundToggle = $('sound-toggle');
-soundToggle.addEventListener('click', () => {
-  const enabled = soundToggle.getAttribute('aria-pressed') !== 'true';
-  sound.setEnabled(enabled);
-  soundToggle.setAttribute('aria-pressed', String(enabled));
-  soundToggle.textContent = enabled ? 'SOUND ON' : 'SOUND OFF';
-  soundToggle.setAttribute('aria-label', enabled ? 'Turn sound off' : 'Turn sound on');
-  soundToggle.title = enabled ? 'Turn sound off' : 'Turn sound on';
-});
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') $('inspector').hidden = true;
   if (event.key.toLowerCase() === 'h' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName) && document.activeElement?.getAttribute('role') !== 'combobox') setUiHidden(!document.body.classList.contains('ui-hidden'));
@@ -1262,7 +1299,7 @@ function observationReport() {
 // Boundary navigation labels retain their original distributed group anchors.
 function positionLabels() {
   const occupied = [];
-  for (const element of [document.querySelector('.scene-bottom'), document.querySelector('.legend'), $('risk-ruler'), $('local-field'), $('inspector')]) {
+  for (const element of [document.querySelector('.scene-bottom'), document.querySelector('.legend'), $('risk-ruler'), $('exhibition-rail'), $('local-field'), $('inspector')]) {
     if (element.hidden || !element.getClientRects().length) continue;
     const rect = element.getBoundingClientRect();
     occupied.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, w: rect.width, h: rect.height });
@@ -1311,6 +1348,9 @@ function positionLabels() {
 function positionSignalLights(now = performance.now()) {
   const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
   const pixelsPerUnitAtDepth = height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  const starSize = cameraPosition.length() * (overview ? 190 : 120) / pixelsPerUnitAtDepth;
+  stellarLight.scale.set(starSize, starSize, 1);
+  stellarCore.scale.set(starSize * .22, starSize * .22, 1);
   for (const [id, point] of meshes) {
     const signal = point.userData.signal;
     const distance = Math.max(0.01, point.getWorldPosition(new THREE.Vector3()).distanceTo(cameraPosition));
@@ -1321,10 +1361,9 @@ function positionSignalLights(now = performance.now()) {
       const cycle = now / 1000 % 7;
       const scanIndex = Math.floor(now / 7000) % quantitative.length;
       const scanned = !reducedMotion.matches && index === scanIndex ? Math.sin(Math.min(1, cycle / 1.1) * Math.PI) : 0;
-      const exceeded = controlsData.find(control => control.id === id).r > 1;
-      signal.material.opacity = Math.min(1, (exceeded ? .96 : .64) + scanned * .08 + (id === hoveredControl ? .14 : 0));
+      signal.material.opacity = Math.min(1, .96 + scanned * .08 + (id === hoveredControl ? .14 : 0));
     }
-    const targetPixels = (active ? 16 : overview ? 16 : baseOpacity >= 0.6 ? 14 : baseOpacity >= 0.2 ? 11 : 9) + (id === hoveredControl ? 2 : 0);
+    const targetPixels = (active ? 34 : overview ? 28 : baseOpacity >= 0.6 ? 25 : 22) + (id === hoveredControl ? 4 : 0);
     const worldSize = distance * targetPixels / pixelsPerUnitAtDepth;
     signal.scale.set(worldSize, worldSize, 1);
     point.userData.glow.scale.set(worldSize * 4.5, worldSize * 4.5, 1);
@@ -1338,7 +1377,7 @@ function updateProjectionReadout() {
 }
 
 window.__PB_DEBUG__ = {
-  graphics: () => ({ type: graphics?.type || 'webgl2', legacy: Boolean(graphics?.legacy), pixelRatio: renderer.getPixelRatio(), width: renderer.domElement.width, height: renderer.domElement.height, calls: renderer.info.render.calls }),
+  graphics: () => ({ type: graphics?.type || 'webgl2', legacy: Boolean(graphics?.legacy), pixelRatio: renderer.getPixelRatio(), width: renderer.domElement.width, height: renderer.domElement.height, cssWidth: width, cssHeight: height, calls: renderer.info.render.calls, antialias: renderer.getContext().getContextAttributes().antialias, qualityScale, strokes: exhibitionLines.snapshot() }),
   navigation: () => ({ scope: selectionScope, boundaryAnchor: groupWorldTarget(selectedGroup).toArray(), fieldAnchor: climate.root.position.toArray() }),
   backgroundMotion: () => ({ starfieldAngle, systemRotationAngle }),
   motion: () => ({ overview, motionPaused, manualObservation, autoRotate: orbit.autoRotate, boundaryAngles: [...boundaryOrbitMotion].map(([id, motion]) => ({ id, angle: motion.angle })), orbitAngles: [...riskOrbits.values()].map((line) => line.userData.angle), reduced: reducedMotion.matches, focusing: !!focusTransition, projection: climate.projectionProgress, points: climate.positions.length }),
@@ -1405,7 +1444,7 @@ const exploration = createAutoExploration({
     manualObservation = true;
     orbit.autoRotate = false;
   },
-});
+}, { initialDelayMs: 6000, boundarySelectionMs: 180, cameraDurationMs: 480, indicatorHoldMs: 1050, datasetSelectionMs: 140, datasetHoldMs: 3200, overviewHoldMs: 1800 });
 const publishExploration = state => dataStream.exploration(state, {
   boundary: groups.find(group => group.id === state.boundaryId)?.name.toUpperCase(),
   dataset: state.datasetId ? datasetPresentation(metadataById.get(state.datasetId)).name : null,
@@ -1488,7 +1527,7 @@ function updatePlanetaryOrbits(dt) {
 function updateFocusTransition(now) {
   if (!focusTransition) return;
   const t = reducedMotion.matches ? 1 : Math.min(1, (now - focusTransition.startedAt) / focusTransition.duration);
-  const step = t * t * (3 - 2 * t);
+  const step = 1 - Math.pow(1 - t, 3);
   camera.position.lerpVectors(focusTransition.fromPosition, focusTransition.toPosition, step);
   orbit.target.lerpVectors(focusTransition.fromTarget, focusTransition.toTarget, step);
   if (t === 1) {
@@ -1499,8 +1538,12 @@ function updateFocusTransition(now) {
 }
 renderer.setAnimationLoop((now) => {
   if (document.hidden) { lastMotionTime = now; return; }
-  if (graphics?.legacy && lastMotionTime !== null && now - lastMotionTime < 1000 / 30 - 1) return;
   const frameElapsedMs = Math.max(0, now - (lastMotionTime ?? now));
+  if (!focusTransition && frameElapsedMs > 0 && frameElapsedMs < 200) { qualityElapsed += frameElapsedMs; qualitySamples++; }
+  if (now - qualityLastCheck > 6000 && qualitySamples > 90) {
+    if (qualityElapsed / qualitySamples > 34 && qualityScale > .72) { qualityScale = Math.max(.72, qualityScale * .9); resize(); }
+    qualitySamples = 0; qualityElapsed = 0; qualityLastCheck = now;
+  }
   const dt = Math.min(.05, Math.max(0, (now - (lastMotionTime ?? now)) / 1000));
   lastMotionTime = now;
   orbit.autoRotate = !motionPaused && overview && !manualObservation && !focusTransition && !reducedMotion.matches && !document.hidden;
@@ -1511,8 +1554,9 @@ renderer.setAnimationLoop((now) => {
   for (const layer of overviewLayers.values()) if (layer.root.visible) {
     layer.update(now, camera, width, height, renderer.getPixelRatio(), width);
   }
-  climate.update(now, camera, width, height, renderer.getPixelRatio(), $('inspector').hidden ? width - 30 : width - 380);
-  updateFocusTransition(now); orbit.update(dt); positionSignalLights(now); renderer.render(scene, camera); positionLabels(); updateProjectionReadout();
+  climate.update(now, camera, width, height, renderer.getPixelRatio(), isExhibition ? $('exhibition-rail').offsetLeft - 30 : $('inspector').hidden ? width - 30 : width - 380);
+  updateFocusTransition(now); orbit.update(dt); positionSignalLights(now); exhibitionLines.update(); renderer.render(scene, camera); positionLabels(); updateProjectionReadout();
+  dataStream.update(now, focusTransition ? 'camera' : climate.active && climate.projectionProgress < 1 ? 'projection' : overview ? 'orbit' : 'observation', EXHIBITION_MOTION_SPEED);
   exploration.tick(frameElapsedMs, { visible: !document.hidden, interacting: heldPointers.size > 0 || heldKeys.size > 0 });
   const soundDistance = Math.max(.001, orbit.getDistance());
   // Restore the original camera-to-observation-target distance independently

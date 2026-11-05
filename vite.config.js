@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+
+const sourceHash = createHash('sha256');
+for (const file of readdirSync(new URL('./src/', import.meta.url)).sort()) {
+  if (/\.(js|css|json)$/.test(file)) sourceHash.update(file).update(readFileSync(new URL(`./src/${file}`, import.meta.url)));
+}
+sourceHash.update(readFileSync(new URL('./package-lock.json', import.meta.url)));
+const buildId = sourceHash.digest('hex').slice(0, 12);
 
 export default defineConfig(({ mode }) => {
   const compatibility = mode === 'compat';
   return {
     base: './',
+    define: { __ATLAS_BUILD_ID__: JSON.stringify(buildId) },
     server: { host: '127.0.0.1', port: 5174, strictPort: true },
     // Keep current Three.js for modern browsers; r162 also supports WebGL 1.
     resolve: compatibility ? { alias: [{ find: /^three(?=\/|$)/, replacement: 'three-webgl1' }] } : undefined,

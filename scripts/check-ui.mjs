@@ -30,8 +30,9 @@ const bounds = () => page.evaluate(() => {
 try {
   const remote = execFileSync('git', ['-C', fileURLToPath(new URL('../', import.meta.url)), 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
   assert.equal(remote, 'https://github.com/ysy6631y/planetary-data-atlas-v2.git', 'V2 must use its own repository, never V1');
-  // sound-system.js uses equivalent JSON cloning/indexing for Safari 14.
-  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layer.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'sound-config.js', 'presence-detector.js']) {
+  // Sound compatibility and the climate-layer point presentation are deliberate
+  // changes; the underlying data, spatial model, and exploration controller stay intact.
+  for (const file of ['auto-exploration.js', 'atlas-data.js', 'climate-layout.js', 'data.js', 'spatial.js', 'observation.js', 'presence-detector.js']) {
     const current = await readFile(new URL(`../src/${file}`, import.meta.url));
     const v1 = await readFile(join(process.env.V1_SOURCE || fileURLToPath(new URL('../../planetary-data-atlas-v1/', import.meta.url)), 'src', file));
     assert(current.equals(v1), `V2 must preserve V1 core: ${file}`);
@@ -41,7 +42,8 @@ try {
   assert.equal(await page.locator('.group-title').count(), 9);
   assert.equal(await page.locator('.control').count(), 13);
   assert.equal(await page.locator('.index-sheet').isVisible(), true);
-  assert.equal(await page.locator('#local-field').isVisible(), true);
+  assert.equal(await page.locator('#local-field').isVisible(), false, 'Exhibition readout stays full-height until data controls are requested');
+  assert.equal(await page.locator('.stream-heading').count(), 0);
   await screenshot('01-overview-1920');
   await page.waitForFunction(() => window.__PB_EXPLORATION__.getState().stage === 'VISUALIZATION READY');
   assert.equal(await page.locator('.group-title[aria-pressed=true]').getAttribute('data-group'), 'climate-change');
@@ -105,15 +107,22 @@ try {
     assert.equal(layout.canvas.height, height);
     assert.equal(await page.locator('#local-field').isVisible(), true, `Data controls must stay visible at ${width}`);
     assert(layout.sheet < layout.gauge.y, `Index overlaps risk gauge at ${width}`);
-    assert(layout.stream.bottom <= layout.selection.y, `Stream overlaps selection at ${width}`);
+    assert.equal(layout.stream.y, 0, `Stream starts at screen edge at ${width}`);
+    assert.equal(layout.stream.bottom, height, `Stream reaches screen bottom at ${width}`);
     assert(layout.inspector.bottom <= height && layout.inspector.height > 0, `Inspector clipped at ${width}`);
     for (const id of ['exhibition-rail', 'local-field', 'inspector', 'boundaries']) {
-      assert.equal(await page.locator(`#${id}`).evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)', `${id} must be transparent`);
+      const background = await page.locator(`#${id}`).evaluate(el => getComputedStyle(el).backgroundColor);
+      if (id === 'exhibition-rail') assert.notEqual(await page.locator(`#${id}`).evaluate(el => getComputedStyle(el).backgroundImage), 'none', 'Console needs a translucent black backdrop with a soft edge');
+      else assert.equal(background, 'rgba(0, 0, 0, 0)', `${id} must be transparent`);
     }
     await screenshot(`06-layout-${width}`);
     responsive.push(layout);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Idle commands are intentionally hidden. An operator reveals them by moving
+  // the mouse before clicking, rather than clicking an invisible target.
+  await page.mouse.move(700, 120);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.observation-toolbar')).opacity === '1');
   await page.locator('#ui-toggle').click();
   assert.equal(await page.locator('#exhibition-rail').isVisible(), false);
   await page.locator('#ui-toggle').click();

@@ -1,4 +1,4 @@
-/* V2 changes the information layout only. The canvas keeps the full viewport. */
+/* Exhibition presentation, with compact layouts for ordinary browser windows. */
 :root { --rail-width: 360px; --index-width: 244px; --edge: 28px; --viewport-height: 100vh; }
 @supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }
 main { height: var(--viewport-height); min-height: 620px; }
@@ -24,14 +24,19 @@ h1 { font-size: 13px; }
 .scene-bottom .risk-ruler { position: static; }
 .risk-scale { border-left-color: #93958f; }
 .observation-distance output { font-size: 23px; }
-#exhibition-rail { position: absolute; z-index: 20; top: 106px; right: var(--edge); bottom: 24px; width: var(--rail-width); display: flex; flex-direction: column; gap: 24px; pointer-events: none; font-family: var(--mono); }
+#exhibition-rail { position: absolute; z-index: 20; top: 106px; right: var(--edge); bottom: 24px; width: var(--rail-width); display: flex; flex-direction: column; gap: 24px; pointer-events: none; font-family: var(--mono); background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,.6) 44px, rgba(0,0,0,.6)); }
 #exhibition-rail > * { pointer-events: auto; min-width: 0; }
-#data-stream { display: flex; flex-direction: column; flex: 0 0 clamp(170px, 24vh, 270px); min-height: 0; background: transparent; }
+#data-stream { display: flex; flex-direction: column; flex: 0 0 clamp(170px, 24vh, 270px); min-height: 0; background: transparent; text-shadow: 0 1px 2px rgba(0,0,0,.9); }
 .stream-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.stream-heading, .stream-key, .stream-footer { position: relative; z-index: 1; flex-shrink: 0; }
 .stream-heading h2 { color: #eceee7; font-size: 10px; min-height: 0; letter-spacing: .06em; }
 #stream-mode { color: var(--signal); font-size: 9px; }
 .stream-key { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 11px; font: 7px/1.4 var(--mono); color: #797b76; }
-#stream-lines { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #484a46 transparent; font: 8px/1.65 var(--mono); font-variant-numeric: tabular-nums; }
+.stream-window { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.stream-window::before, .stream-window::after { content: ''; position: absolute; z-index: 1; left: 0; right: 0; height: 22px; pointer-events: none; }
+.stream-window::before { top: 0; background: linear-gradient(rgba(0,0,0,.3), rgba(0,0,0,0)); }
+.stream-window::after { bottom: 0; height: 12px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.3)); }
+#stream-lines { position: absolute; inset: 0; overflow: hidden; font: 8px/1.65 var(--mono); font-variant-numeric: tabular-nums; }
 .stream-line { display: grid; grid-template-columns: 28px 31px minmax(0,1fr); gap: 6px; color: #b5b7b0; padding: 1px 0; overflow-wrap: anywhere; }
 .stream-sequence { color: #555951; }
 .stream-type { color: #8c9086; }
@@ -70,6 +75,65 @@ h1 { font-size: 13px; }
 @media (max-width: 850px) { :root { --rail-width: 260px; --index-width: 168px; --edge: 14px; } h1 { font-size: 11px; } .stream-key { flex-direction: column; gap: 2px; margin-bottom: 6px; } .record-tools { grid-template-columns: 1fr; gap: 4px; } .climate-settings { gap: 8px; } .legend { gap: 8px; font-size: 7px; } .group-title { font-size: 8px; } .control { font-size: 7px; } }
 @media (max-width: 600px) { :root { --rail-width: 44vw; --index-width: 39vw; --edge: 12px; } header { height: 46px; } h1 { font-size: 10px; } .scene-top { top: 49px; right: 12px; } .observation-toolbar { top: 76px; right: 10px; gap: 2px; } .observation-toolbar button, .observation-toolbar #fit { font-size: 8px; width: auto; padding: 0 5px; } .legend { top: 111px; right: 10px; flex-wrap: wrap; max-width: 44vw; } #boundaries { top: 88px; } #exhibition-rail { top: 156px; bottom: 16px; gap: 14px; } #data-stream { flex-basis: 130px; } .stream-heading h2, .analysis-head .eyebrow { font-size: 8px; } .stream-line { grid-template-columns: 1fr; gap: 0; } .stream-sequence, .stream-type { display: none; } #stream-lines { font-size: 7px; } .stream-footer { font-size: 7px; } #stream-count { display: none; } .group-title { font-size: 8px; } .control { padding-left: 12px; font-size: 7px; } .group-title .number { min-width: 13px; } .scene-bottom { left: 12px; bottom: 16px; } .risk-scale i { font-size: 7px; } .risk-ruler strong { font-size: 8px; } .risk-source { font-size: 7px; } .observation-distance output { font-size: 18px; } .observation-distance > span { font-size: 7px; } #exhibition-rail #local-field { max-height: 32vh; } }
 
+/* The 27-inch installation is the primary composition: a large luminous atlas
+   with a full-height console over the right two fifths of the scene. */
+@media (min-width: 1700px) {
+  :root { --rail-width: 980px; --index-width: 264px; --edge: 32px; }
+  h1 { font-size: 18px; }
+  header { height: 76px; }
+  #boundaries { top: 132px; }
+  #boundaries .index-sheet { max-height: min(66vh, calc(var(--viewport-height) - 480px)); }
+  .index-sheet > h2 { font-size: 11px; margin-bottom: 20px; }
+  .group { padding: 13px 0; }
+  .group-title { font-size: 12px; line-height: 1.4; }
+  .control { font-size: 11px; min-height: 28px; padding-top: 5px; padding-bottom: 5px; }
+  .scene-top { top: 88px; }
+  #scene-selection { font-size: 12px; color: #c7c8c2; }
+  .observation-toolbar { top: 30px; }
+  .observation-toolbar button, .observation-toolbar #fit { font-size: 12px; padding: 0 14px; }
+  .legend { top: 88px; font-size: 10px; gap: 22px; color: #c9cbc5; }
+  #exhibition-rail { top: 128px; bottom: 32px; right: 32px; padding: 28px 30px 22px; gap: 24px; border: 0; box-shadow: none; }
+  #data-stream { flex: 1 1 auto; min-height: 280px; }
+  .stream-heading { margin-bottom: 18px; }
+  .stream-heading h2 { font-size: 19px; letter-spacing: .025em; }
+  .stream-heading h2::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 12px; background: #ff604c; box-shadow: 0 0 14px rgba(255,75,50,.8); vertical-align: 2px; }
+  #stream-mode { font-size: 12px; color: #ff6a53; }
+  .stream-key { font-size: 10px; margin-bottom: 18px; color: #9c9f96; }
+  #stream-lines { font-size: 13px; line-height: 1.85; }
+  .stream-line { grid-template-columns: 58px 46px minmax(0,1fr); gap: 12px; color: #d5d8cd; padding: 0; height: 25px; }
+  .stream-line > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .stream-line.trace { color: #b9c2b4; }
+  .stream-sequence { color: #666f63; }
+  .stream-type { color: #8d9c89; }
+  .stream-line.important, .stream-line.important .stream-type { color: #ff735d; }
+  .stream-footer { font-size: 10px; padding-top: 14px; margin-top: 16px; }
+  #exhibition-rail #local-field { flex: 0 0 auto; max-height: 370px; gap: 12px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.2); }
+  .analysis-head .eyebrow { font-size: 14px; }
+  .analysis-head strong { font-size: 12px; }
+  #local-field .dataset-picker { font-size: 12px; grid-template-columns: 54px minmax(0,1fr); }
+  #local-field > .dataset-summary { font-size: 11px; }
+  .select-trigger { min-height: 36px; font-size: 12px; }
+  .select-option { font-size: 12px; padding: 10px 12px; }
+  .record-tools, .climate-settings { font-size: 11px; }
+  #exhibition-rail #inspector { flex: 0 0 270px; min-height: 160px; border-top: 1px solid rgba(255,255,255,.18); padding-top: 16px; }
+  .instrument-tabs button { font-size: 11px; }
+  .instrument-view { font-size: 12px; }
+  .fields > div { grid-template-columns: 140px minmax(0,1fr); }
+  .group-label, .point-label { font-size: 12px; color: #e6e5dc; text-shadow: 0 0 7px #000, 0 1px 4px #000; }
+  .scene-bottom { bottom: 32px; }
+  .observation-distance output { font-size: 32px; }
+}
+@media (min-width: 1700px) and (max-width: 2200px) {
+  :root { --rail-width: 38vw; }
+  #exhibition-rail { padding: 22px; }
+  #stream-lines { font-size: 11px; }
+  .stream-line { grid-template-columns: 46px 40px minmax(0,1fr); gap: 9px; height: 22px; }
+}
+@media (min-width: 1700px) and (max-height: 1150px) {
+  #exhibition-rail #inspector { flex-basis: 160px; }
+  #data-stream { min-height: 220px; }
+}
+
 /* Real records remain available when the GPU/driver disables WebGL entirely. */
 body.data-view { overflow: auto; }
 .data-view main { display: block; height: auto; min-height: 100vh; padding: 76px 28px 40px; }
@@ -88,3 +152,70 @@ body.data-view { overflow: auto; }
 .data-view-table td, .data-view-table th { padding: 6px 10px; border: 1px solid #444; text-align: left; white-space: nowrap; }
 .data-view-records { overflow-wrap: anywhere; }
 .data-view-pages { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+
+/* The preview iframe always lays out at 2560×1440 before it is scaled. */
+body.exhibition-preview { margin: 0; overflow: hidden; background: #111; }
+#exhibition-preview-frame { position: fixed; border: 0; transform-origin: top left; background: #000; }
+#exhibition-preview-tools { position: fixed; z-index: 100; top: 0; left: 0; right: 0; height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 16px; color: #c5c5bd; background: #111; font: 11px/1.4 system-ui, sans-serif; }
+#exhibition-preview-tools button { font: inherit; color: #eee6d6; background: transparent; border: 1px solid #514a40; padding: 5px 10px; cursor: pointer; }
+.observation-toolbar #exhibition-preview-toggle { width: 82px; white-space: nowrap; }
+@media (min-width: 1700px) { .observation-toolbar #exhibition-preview-toggle { display: none; } }
+
+/* One continuous, full-height data layer over the scene. */
+#exhibition-rail {
+  top: 0; bottom: 0; right: 0; padding: 0; gap: 0; border: 0; box-shadow: none;
+  background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,.42) 48px, rgba(0,0,0,.42));
+}
+#data-stream { position: absolute; inset: 0; display: block; min-height: 0; padding: 0 30px; overflow: hidden; }
+#data-stream .stream-window { position: absolute; top: 28px; bottom: 0; left: 30px; right: 30px; }
+#data-stream > .legend { position: absolute; z-index: 2; top: 5px; left: auto; right: 30px; display: flex; flex-wrap: nowrap; gap: 18px; margin: 0; padding: 0; border: 0; font-size: 10px; line-height: 16px; background: transparent; white-space: nowrap; }
+#data-stream > .legend .legend-row { height: 16px; min-height: 16px; }
+.stream-window::before, .stream-window::after { display: none; }
+#stream-lines { overflow: hidden; }
+.stream-track { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+.stream-line { height: 22px; padding: 0; overflow: hidden; line-height: 22px; }
+.stream-line > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#data-controls { display: none; position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 24px; max-height: calc(var(--viewport-height) - 160px); padding: 18px; gap: 18px; flex-direction: column; background: rgba(0,0,0,.88); pointer-events: auto; }
+.data-controls-open #data-controls { display: flex; }
+#data-controls #local-field { flex: 0 0 auto; padding: 0; border: 0; max-height: min(370px, 40vh); }
+#data-controls #inspector { flex: 1 1 auto; min-height: 80px; max-height: 38vh; padding-top: 0; border: 0; }
+#data-controls .analysis-body { border: 0; }
+@media (min-width: 1700px) { .stream-line { height: 25px; line-height: 25px; } }
+@media (min-width: 1700px) and (max-width: 2200px) { .stream-line { height: 22px; line-height: 22px; } }
+@media (max-width: 850px) { #data-stream .stream-window { left: 14px; right: 14px; } #data-controls { left: 8px; right: 8px; padding: 12px; } }
+@media (max-width: 600px) { .stream-line { display: block; height: 20px; line-height: 20px; } .stream-line > span:not(:last-child) { display: none; } .stream-line > span:last-child { display: block; } #data-controls { padding: 8px; gap: 10px; } }
+/* Keep operator commands off the full-height readout. */
+@media (min-width: 1000px) {
+  .observation-toolbar { left: calc(var(--edge) + var(--index-width) + 32px); right: auto; }
+  #sound-operator { left: calc(var(--edge) + var(--index-width) + 32px); right: auto; }
+  #sound-operator summary { justify-content: flex-start; }
+}
+@media (max-width: 850px) { #data-stream > .legend { right: 14px; gap: 10px; font-size: 8px; } }
+@media (max-width: 600px) { #data-stream > .legend { right: 6px; gap: 4px; font-size: 6px; } #data-stream > .legend .legend-row { grid-template-columns: 4px 5px auto; gap: 2px; } #data-stream > .legend b { width: 5px; } }
+/* Calculation traces support the atlas instead of competing with it. */
+#data-stream .stream-window { top: 0; }
+#stream-lines { font-size: 10px; }
+.stream-line, .stream-line.trace, .stream-line.important { position: relative; display: block; padding-left: 10px; color: #727b72; font-weight: 400; text-shadow: 0 1px 2px #000; }
+.stream-line.tone-0 { opacity: .4; }
+.stream-line.tone-1 { opacity: .67; }
+.stream-line.tone-2 { opacity: .88; }
+.stream-line.event { color: #9c9c91; }
+.stream-line.important { opacity: .92; color: #a3a197; }
+.stream-line > .stream-sequence, .stream-line > .stream-type { display: none; }
+.stream-line > span:last-child { display: block; }
+.stream-line.important::before { content: ''; position: absolute; left: 1px; top: 10px; width: 3px; height: 3px; border-radius: 50%; background: #8c8b80; opacity: .65; }
+.scene-bottom { grid-template-columns: 188px auto; align-items: end; }
+.scene-bottom .risk-ruler { grid-column: 1 / -1; }
+.scene-bottom .observation-distance { grid-column: 1; }
+.scene-bottom > .legend { position: static; grid-column: 2; display: flex; flex-wrap: nowrap; align-self: end; gap: 16px; margin: 0 0 4px; padding: 0; border: 0; background: transparent; color: #85877e; font-size: 8px; line-height: 14px; white-space: nowrap; pointer-events: auto; }
+.scene-bottom > .legend .legend-row { height: 14px; min-height: 14px; }
+@media (min-width: 1700px) { #stream-lines { font-size: 11px; } }
+@media (max-width: 850px) { #stream-lines { font-size: 8px; } }
+@media (max-width: 600px) { #stream-lines { font-size: 7px; } .scene-bottom { grid-template-columns: 188px; gap: 10px; } .scene-bottom > .legend { grid-column: 1; gap: 10px; font-size: 6px; } }
+/* Keep the installation balanced around the complete planetary reference. */
+@media (min-width: 1700px) { :root { --rail-width: 34vw; --index-width: 14.5vw; } }
+header, .scene-top, .observation-toolbar, #sound-operator, #exhibition-preview-tools { transition: opacity 180ms ease, transform 180ms ease; }
+.header-idle header, .header-idle .scene-top, .header-idle .observation-toolbar, .header-idle #sound-operator, .header-idle #exhibition-preview-tools { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.stream-line.exceeded { color: #b95e50; opacity: .84; }
+.stream-line.exceeded::before { content: ''; position: absolute; left: 1px; top: 10px; width: 3px; height: 3px; border-radius: 50%; background: #ea604b; }
+@media (prefers-reduced-motion: reduce) { header, .scene-top, .observation-toolbar, #sound-operator, #exhibition-preview-tools { transition: none; } }
