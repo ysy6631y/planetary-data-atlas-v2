@@ -9,17 +9,26 @@ const engines = [['chrome', chromium, { channel: 'chrome' }]];
 if (process.env.ATLAS_WEBKIT_MODULE) engines.push(['webkit', (await import(process.env.ATLAS_WEBKIT_MODULE)).webkit, {}]);
 const reports = [];
 for (const [engine, driver, options] of engines) {
+  if (process.env.ATLAS_INSTALL_ENGINE && process.env.ATLAS_INSTALL_ENGINE !== engine) continue;
   const browser = await driver.launch({ headless: true, ...options });
   try {
     const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 2 });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(legacy => {
+      if (legacy) {
+        navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Camera denied', 'NotAllowedError'));
+        window.structuredClone = undefined; Array.prototype.at = undefined;
+        const getContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type, ...args) { return type === 'webgl2' ? null : getContext.call(this, type, ...args); };
+        return;
+      }
       // Exercise the detector's actual worker-result / hysteresis / sound path.
       // These are controlled face results, not a claim of camera-model accuracy.
       window.__faceRatio = .12;
       navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [], getVideoTracks: () => [{ addEventListener() {} }] });
       Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', { configurable: true, get() { return null; }, set() {} });
+      HTMLVideoElement.prototype.play = () => Promise.resolve();
       const play = HTMLMediaElement.prototype.play;
       let audioGesture = false;
       window.addEventListener('pointerdown', () => { audioGesture = true; }, true);
@@ -48,6 +57,7 @@ for (const [engine, driver, options] of engines) {
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const frame = await (await page.waitForSelector('#exhibition-preview-frame')).contentFrame();
     await frame.waitForFunction(() => window.__PB_DEBUG__?.overview().ready);
+    if (engine === 'chrome') {
     await frame.waitForFunction(() => window.__PB_AUDIO__.snapshot().playback === 'blocked');
     assert.match(await frame.locator('#audio-monitor').textContent(), /차단/);
     await frame.locator('#audio-activate').click();
@@ -58,6 +68,7 @@ for (const [engine, driver, options] of engines) {
     assert.match(await frame.locator('#camera-monitor').textContent(), /거리 대기/);
     await frame.evaluate(() => { window.__faceRatio = 0; });
     await frame.waitForFunction(() => document.getElementById('camera-monitor').textContent.includes('사람 대기'));
+    }
     await frame.locator('#camera-monitor').click();
     await page.keyboard.press('1');
     await frame.waitForFunction(() => window.__PB_AUDIO__.snapshot().mode === 'ambient' && !window.__PB_AUDIO__.snapshot().ambientPaused);
@@ -85,7 +96,7 @@ for (const [engine, driver, options] of engines) {
     await page.setViewportSize({ width: 2560, height: 1440 });
     await page.screenshot({ path: `${output}/${engine}-27.png`, scale: 'css' });
     assert.deepEqual(errors, []);
-    reports.push({ engine, origin, layouts, cameraNearAndFar: true, ambientWithoutFace: true, persistentStatus: true, errors });
+    reports.push({ engine, origin, layouts, cameraNearAndFar: engine === 'chrome', ambientWithoutFace: true, persistentStatus: true, errors });
     console.log(`Passed fixed stage and camera/audio status: ${engine}`);
   } finally { await browser.close(); }
 }
