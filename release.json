@@ -1,13 +1,14 @@
 {
-  "sourceCommit": "404bcae3f12f0bb6bf70e0293e085de9ca7cf392",
-  "buildId": "58b2e1034fec",
+  "sourceCommit": "d065d9946ac5d188f1569af7a03e09976d66fbe3",
+  "buildId": "8fdf319da0b8",
   "compatibilityTarget": "Safari 14.1.3",
   "viewport": [
     2560,
     1440
   ],
   "layout": "width-filled-exhibition-stage",
-  "camera": "local-cpu-legacy-fallback",
-  "header": "always-visible",
-  "zoomSound": "transmission-reveal-mix"
+  "interaction": "continuous-auto",
+  "sound": "continuous-data-mix",
+  "droneBed": 0.04,
+  "header": "always-visible"
 }
