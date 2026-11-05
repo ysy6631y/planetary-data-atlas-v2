@@ -20,6 +20,7 @@ try {
   const wait = predicate => frame.waitForFunction(predicate, null, { polling: 100, timeout: 60000 });
   await wait(() => window.__PB_SOUND_OPERATOR__?.presence.snapshot().backend === 'camera');
   await wait(() => document.querySelector('.presence-video')?.readyState >= 2);
+  await wait(() => window.__PB_DEBUG__?.overview().ready && Boolean(window.__PB_EXPLORATION__));
   await page.keyboard.press('1');
   await wait(() => window.__PB_AUDIO__.snapshot().ambientVolume > .039 && !window.__PB_AUDIO__.snapshot().ambientPaused);
   const state = await frame.evaluate(() => {
