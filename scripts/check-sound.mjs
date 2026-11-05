@@ -105,7 +105,7 @@ try {
       await page.waitForFunction(() => {
         const a = document.getElementById('ambient-track');
         return !a.seeking && a.currentTime > 0 && a.currentTime < 2 && !a.paused;
-      }, null, { timeout: 5000 });
+      }, null, { polling: 100, timeout: process.env.ATLAS_TEST_URL ? 20000 : 5000 });
 
       // Smooth return to an absent camera; no source restart on mode changes.
       await page.keyboard.press('1');

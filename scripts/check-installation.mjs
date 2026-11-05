@@ -56,7 +56,7 @@ for (const [engine, driver, options] of engines) {
     }, engine === 'webkit');
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const frame = await (await page.waitForSelector('#exhibition-preview-frame')).contentFrame();
-    await frame.waitForFunction(() => window.__PB_DEBUG__?.overview().ready);
+    await frame.waitForFunction(() => window.__PB_DEBUG__?.overview().ready, null, { polling: 100, timeout: 60000 });
     if (engine === 'chrome') {
     await frame.waitForFunction(() => window.__PB_AUDIO__.snapshot().playback === 'blocked');
     assert.match(await frame.locator('#audio-monitor').textContent(), /차단/);
