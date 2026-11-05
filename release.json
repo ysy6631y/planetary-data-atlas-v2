@@ -1,14 +1,16 @@
 {
-  "sourceCommit": "d065d9946ac5d188f1569af7a03e09976d66fbe3",
-  "buildId": "8fdf319da0b8",
+  "sourceCommit": "5ce713db301e0491489d29e79133e200735e555e",
+  "buildId": "81a6f7ac2cf7",
   "compatibilityTarget": "Safari 14.1.3",
-  "viewport": [
-    2560,
-    1440
-  ],
   "layout": "width-filled-exhibition-stage",
   "interaction": "continuous-auto",
   "sound": "continuous-data-mix",
-  "droneBed": 0.04,
-  "header": "always-visible"
+  "header": "hidden",
+  "audioReadouts": false,
+  "indicators": {
+    "width": 224,
+    "rowHeight": 14,
+    "groupPadding": 3
+  },
+  "camera": "off"
 }
