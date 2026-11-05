@@ -32,6 +32,7 @@ let browser;
 try {
   const engines = ['chromium', ...(process.env.ATLAS_WEBKIT_MODULE ? ['webkit'] : [])];
   for (const engine of engines) {
+    if (process.env.ATLAS_SOUND_ENGINE && process.env.ATLAS_SOUND_ENGINE !== engine) continue;
     const driver = engine === 'webkit' ? (process.env.ATLAS_WEBKIT_MODULE ? (await import(process.env.ATLAS_WEBKIT_MODULE)).webkit : webkit) : chromium;
     browser = await driver.launch({ headless: true, ...(engine === 'chromium' ? { channel: 'chrome' } : {}) });
     for (const variant of ['webgl2', 'webgl1', 'no-webgl-no-audiocontext']) {
@@ -64,7 +65,7 @@ try {
           window.AudioContext = class extends Constructor { constructor(...args) { super(...args); window.__audioCalls.contexts++; } };
         }
       }, variant);
-      await page.goto(contentUrl(origin));
+      await page.goto(contentUrl(origin), { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => window.__PB_AUDIO__ && document.getElementById('presence-start').disabled === false);
       const state = () => page.evaluate(() => window.__PB_AUDIO__.snapshot());
       assert.equal((await state()).mode, 'auto');
