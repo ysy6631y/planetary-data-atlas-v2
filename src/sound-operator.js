@@ -26,7 +26,7 @@ export function mountSoundOperator() {
   let cameraState = { phase: 'starting', ratio: 0, near: false };
   const renderMonitor = (state = sound.snapshot()) => {
     const camera = cameraState.phase === 'active'
-      ? cameraState.ratio > 0 ? `CAM 인식 · ${cameraState.near ? '근접' : '거리 대기'} · ${Math.round(cameraState.ratio * 100)}%` : 'CAM 사람 대기'
+      ? cameraState.ratio > 0 ? `CAM 인식 · ${cameraState.near ? '근접' : '거리 대기'} · 얼굴 ${Math.round(cameraState.ratio * 100)}%` : 'CAM 사람 대기'
       : cameraState.phase === 'starting' ? 'CAM 연결 중' : `CAM ${cameraState.message || '꺼짐'}`;
     const playing = state.playback === 'playing' && !state.ambientPaused && !state.ambientMuted && state.ambientVolume > 0;
     const blocked = state.playback === 'blocked' || (!state.unlocked && state.present);

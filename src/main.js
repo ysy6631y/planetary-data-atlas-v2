@@ -389,7 +389,7 @@ for (let i = 0; i < 2400; i++) {
 starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
 starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
 const starField = new THREE.Points(starGeometry, new THREE.PointsMaterial({
-  size: 0.047,
+  size: 0.085,
   map: whiteSignal,
   blending: THREE.AdditiveBlending,
   sizeAttenuation: true,
