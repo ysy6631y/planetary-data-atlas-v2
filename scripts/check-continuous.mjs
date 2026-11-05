@@ -29,7 +29,15 @@ for (const [engine, driver, options] of engines) {
     const frame = await (await page.waitForSelector('#exhibition-preview-frame')).contentFrame();
     const wait = (fn, arg) => frame.waitForFunction(fn, arg, { polling: 100, timeout: 60000 });
     await wait(() => window.__PB_DEBUG__?.overview().ready);
-    assert.equal(await frame.evaluate(() => window.__cameraRequests), 0, 'Continuous exhibition must not open a camera permission prompt');
+    // Install the denied-camera transport after WebKit initializes the iframe's
+    // mediaDevices object, then exercise the real operator retry path.
+    await frame.evaluate(async () => {
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => { window.__cameraRequests++; throw new DOMException('Camera denied', 'NotAllowedError'); } });
+      window.__PB_SOUND_OPERATOR__.presence.stop();
+      await window.__PB_SOUND_OPERATOR__.presence.start();
+    });
+    assert(await frame.evaluate(() => window.__cameraRequests >= 1));
+    assert.equal(await frame.evaluate(() => window.__PB_SOUND_OPERATOR__.presence.snapshot().phase), 'off');
     await page.keyboard.press('1');
     await wait(() => { const s = window.__PB_AUDIO__.snapshot(); return !s.ambientPaused && s.loaded === s.expected; });
     await frame.evaluate(() => {

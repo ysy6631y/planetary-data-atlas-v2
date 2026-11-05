@@ -57,6 +57,8 @@ export function mountExhibitionPreview() {
     if (!sound) return;
     event.preventDefault();
     sound.setMode(event.key === '0' ? 'muted' : !sound.snapshot().continuous && sound.snapshot().mode === 'ambient' ? 'auto' : 'ambient', event);
+    const presence = frame.contentWindow?.__PB_SOUND_OPERATOR__?.presence;
+    if (event.key === '1' && sound.snapshot().continuous && presence?.snapshot().phase === 'off') void presence.start();
   });
   const header = installIdleHeader();
   frame.addEventListener('load', () => { frame.contentWindow.focus(); frame.contentWindow.addEventListener('pointermove', header.activity, { passive: true }); });

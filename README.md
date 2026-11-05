@@ -93,6 +93,15 @@ background separates the narrow indicators from the orbit lines.
 review override for source inspection and the earlier camera-controlled sound;
 the controls below describe that override. Public operation needs no camera.
 
+At the operator's explicit request, the exhibition now opens a real video-only
+camera stream to keep the hardware indicator illuminated. Initial Safari camera
+permission is required. The stream is local, not recorded or uploaded, and no
+face model / pixel processing runs in this mode. Audio and AUTO continue even
+when permission is denied. `1` also retries a stopped camera; `0` mutes sound
+without closing its track. Closing the page releases the camera. The browser
+check `node scripts/check-camera-indicator.mjs` uses Chromium's fake camera to
+verify live tracks, independent sound, absence of upload/model requests and cleanup.
+
 - `1`: toggle **AMBIENT** (continuous loop, camera-independent) and **AUTO**
   (existing camera/presence system). Starting from MUTE, `1` starts AMBIENT.
 - `0`: immediate **MUTE** for both ambient audio and generated signal voices.

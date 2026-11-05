@@ -91,13 +91,17 @@ export function mountSoundOperator() {
     toggle.title = continuous ? '1 Sound on · 0 Mute · 화면은 계속 AUTO' : `AUDIO ${mode} · 1 Ambient / Auto · 0 Mute`;
   });
   const presence = createPresenceDetector({ button: document.getElementById('presence-start'), status: document.getElementById('presence-status'), sound,
-    autoStart: !continuous,
+    autoStart: true, keepCameraOn: continuous,
     onState(state) { cameraState = state; renderMonitor(); } });
   monitor.querySelector('#camera-retry').onclick = event => { sound.unlock(event); void presence.start(); };
+  const retryCamera = event => {
+    if (continuous && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey && event.key === '1' && presence.snapshot().phase === 'off') void presence.start();
+  };
+  window.addEventListener('keydown', retryCamera, true);
   const monitorTimer = setInterval(renderMonitor, 500);
   window.__PB_AUDIO__ = sound;
   const operator = { sound, presence, dispose() {
-    clearInterval(monitorTimer); unsubscribe(); presence.dispose(); sound.dispose(); toggle.removeEventListener('click', toggleSound);
+    clearInterval(monitorTimer); unsubscribe(); presence.dispose(); sound.dispose(); toggle.removeEventListener('click', toggleSound); window.removeEventListener('keydown', retryCamera, true);
     cameraControls.hidden = true; document.body.append(cameraControls);
     panel.remove(); monitor.remove(); delete window.__PB_SOUND_OPERATOR__;
   } };

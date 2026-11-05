@@ -19,7 +19,7 @@ export function createPresenceGate(onChange, config = PRESENCE_CONFIG) {
   };
 }
 
-export function createPresenceDetector({ button, status, sound, onState = () => {}, autoStart = true }) {
+export function createPresenceDetector({ button, status, sound, onState = () => {}, autoStart = true, keepCameraOn = false }) {
   let worker, stream, timer, startupTimer, video, busy = false, active = false, generation = 0, lastResult = 0;
   let disposed = false;
   let detector, backend = null, switching = false;
@@ -50,13 +50,29 @@ export function createPresenceDetector({ button, status, sound, onState = () => 
     sound.unlock();
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('HTTPS 또는 localhost에서 카메라를 사용할 수 있습니다');
-      const camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: false });
+      const camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: keepCameraOn ? 320 : 640 }, height: { ideal: keepCameraOn ? 240 : 480 }, ...(keepCameraOn ? { frameRate: { ideal: 5 } } : {}), facingMode: 'user' }, audio: false });
       if (token !== generation) { camera.getTracks().forEach(track => track.stop()); return; }
       stream = camera;
       video = document.createElement('video'); video.muted = true; video.playsInline = true;
       video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.autoplay = true;
       video.className = 'presence-video'; video.setAttribute('aria-hidden', 'true');
       document.body.append(video); video.srcObject = stream;
+      if (keepCameraOn) {
+        // Keep a real local camera track open for the hardware indicator.
+        // No recorder, upload, face model or pixel processing is involved.
+        active = true; backend = 'camera';
+        button.disabled = false; button.textContent = '카메라 중지'; button.setAttribute('aria-pressed', 'true');
+        report('카메라 켜짐 · 녹화·전송 없음', { phase: 'active', backend, ratio: 0, near: false });
+        camera.getVideoTracks()[0].addEventListener('ended', () => {
+          if (token !== generation) return;
+          stop('카메라 연결이 끊겼습니다 · 재연결 중');
+          startupTimer = setTimeout(() => { if (!disposed) void start(); }, 1500);
+        });
+        void video.play().catch(() => {
+          if (token === generation) report('카메라 켜짐 · 영상 재생 대기 · 녹화·전송 없음', { phase: 'active', backend });
+        });
+        return;
+      }
       let videoTimer;
       try { await Promise.race([video.play(), new Promise((_, reject) => { videoTimer = setTimeout(() => reject(new Error('영상 재생 대기 · 카메라 시작 버튼을 눌러 주세요')), 10000); })]); }
       finally { clearTimeout(videoTimer); }
