@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
-const origin = process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/';
+const testUrl = new URL(process.env.ATLAS_TEST_URL || 'http://127.0.0.1:4174/');
+testUrl.searchParams.set('interaction', 'manual');
+const origin = testUrl.href;
 const output = 'validation/installation';
 await mkdir(output, { recursive: true });
 const engines = [['chrome', chromium, { channel: 'chrome' }]];

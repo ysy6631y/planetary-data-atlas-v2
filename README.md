@@ -79,6 +79,15 @@ after building both renderers; the development server uses the modern engine.
 
 ## Operator sound controls
 
+The public exhibition now stays in AUTO continuously. Visitor input and `1`/`0`
+never switch the scene to MANUAL. `1` enables the continuous data mix (repeating
+`1` keeps it on); `0` mutes audio while the scene keeps moving. The drone bed
+defaults to 4%, with frequent short data packets and camera-synchronized reveal /
+glitch cues. Cursor hides after 3 seconds. Menu rows use 22px and group padding
+8px at the canonical stage height. `?interaction=manual` is an explicit developer
+review override for source inspection and the earlier camera-controlled sound;
+the controls below describe that override. Public operation needs no camera.
+
 - `1`: toggle **AMBIENT** (continuous loop, camera-independent) and **AUTO**
   (existing camera/presence system). Starting from MUTE, `1` starts AMBIENT.
 - `0`: immediate **MUTE** for both ambient audio and generated signal voices.
@@ -224,3 +233,7 @@ transmission and 511418 reveal fragments. They also work in manual Ambient mode;
 autonomous effects remain AUTO-only. Cues expire instead of accumulating, use at
 most two voices, and respect MUTE and page visibility. The sound browser check
 exercises the cue mix with a denied camera and rapid repeated input.
+
+`node scripts/check-continuous.mjs` checks the public AUTO-only behavior,
+camera-denied continuous sound, repeated operator digits, suppressed mouse
+takeover, recurring data packets, zoom cue timing and fullscreen-sized resizes.

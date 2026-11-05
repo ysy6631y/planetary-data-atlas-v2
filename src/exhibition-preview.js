@@ -38,18 +38,36 @@ export function mountExhibitionPreview() {
     frame.contentWindow?.postMessage({ type: 'atlas-stage-scale', scale: Math.min(1, scale) }, location.origin);
     tools.querySelector('output').textContent = ` / ${Math.round(scale * 100)}%`;
   };
-  window.addEventListener('resize', resize); resize();
+  let resizeTimers = [];
+  const settleSize = () => {
+    resizeTimers.forEach(clearTimeout);
+    resize();
+    resizeTimers = [100, 350, 1000].map(delay => setTimeout(resize, delay));
+  };
+  window.addEventListener('resize', settleSize);
+  window.visualViewport?.addEventListener('resize', settleSize);
+  document.addEventListener('fullscreenchange', settleSize);
+  document.addEventListener('webkitfullscreenchange', settleSize);
+  window.addEventListener('pageshow', settleSize);
+  resize();
   document.body.addEventListener('pointerdown', () => frame.contentWindow?.focus());
   window.addEventListener('keydown', event => {
     if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || !['0', '1'].includes(event.key)) return;
     const sound = frame.contentWindow?.__PB_AUDIO__;
     if (!sound) return;
     event.preventDefault();
-    sound.setMode(event.key === '0' ? 'muted' : sound.snapshot().mode === 'ambient' ? 'auto' : 'ambient', event);
+    sound.setMode(event.key === '0' ? 'muted' : !sound.snapshot().continuous && sound.snapshot().mode === 'ambient' ? 'auto' : 'ambient', event);
   });
   const header = installIdleHeader();
   frame.addEventListener('load', () => { frame.contentWindow.focus(); frame.contentWindow.addEventListener('pointermove', header.activity, { passive: true }); });
-  if (import.meta.hot) import.meta.hot.dispose(() => window.removeEventListener('resize', resize));
+  if (import.meta.hot) import.meta.hot.dispose(() => {
+    resizeTimers.forEach(clearTimeout);
+    window.removeEventListener('resize', settleSize);
+    window.visualViewport?.removeEventListener('resize', settleSize);
+    document.removeEventListener('fullscreenchange', settleSize);
+    document.removeEventListener('webkitfullscreenchange', settleSize);
+    window.removeEventListener('pageshow', settleSize);
+  });
   return true;
 }
 

@@ -6,13 +6,20 @@ export function createSoundSystem(ambient, overrides = {}) {
   // Configuration contains only JSON values; support Safari before 15.4.
   const settings = JSON.parse(JSON.stringify(SOUND_CONFIG));
   for (const [key, value] of Object.entries(overrides)) settings[key] = typeof value === 'object' && !Array.isArray(value) ? { ...settings[key], ...value } : value;
+  const continuous = new URL(location.href).searchParams.get('interaction') !== 'manual';
+  if (continuous) {
+    settings.manualAmbientVolume = .04;
+    settings.flow.interval = [.65, 1.9]; settings.flow.nearInterval = [.3, .6];
+    settings.flow.quietInterval = [1.2, 2.8]; settings.flow.quietChance = .07;
+    settings.flow.nearChance = .35;
+  }
   const controller = new AbortController();
   const samples = new Map(), buffers = new Map(), voices = new Set();
   const history = [], errors = [], inputWindow = [];
   const previousSamples = new Map();
   const listeners = new Set();
   let context, master, flowBus, detailBus, limiter, loading;
-  let mode = 'auto', playback = 'waiting', playRequest = null, playGeneration = 0;
+  let mode = continuous ? 'ambient' : 'auto', playback = 'waiting', playRequest = null, playGeneration = 0;
   let fadeFrame = 0, fade = null;
   let recoveryTimer = 0;
   let enabled = true, disposed = false, unlocked = false, suspended = document.hidden, wasRunning = false;
@@ -36,7 +43,7 @@ export function createSoundSystem(ambient, overrides = {}) {
 
   function finishSilence() {
     if (!audible()) { ambient.pause(); playGeneration++; playRequest = null; }
-    if (mode !== 'auto' || !present) stopVoices();
+    if (!audible()) stopVoices();
   }
 
   function fadeToMode(immediate = false, seconds = settings.modeFadeSeconds) {
@@ -177,7 +184,7 @@ export function createSoundSystem(ambient, overrides = {}) {
     const command = soundShortcut(event);
     if (command) {
       event.preventDefault();
-      setMode(command === 'ambient' && mode === 'ambient' ? 'auto' : command, event);
+      setMode(!continuous && command === 'ambient' && mode === 'ambient' ? 'auto' : command, event);
     } else if (!event.repeat) unlock(event);
   }
 
@@ -195,7 +202,7 @@ export function createSoundSystem(ambient, overrides = {}) {
 
   function playSample(sample, gainScale = 1, now = seconds(), trigger = 'autonomous', cue = {}) {
     if (!sample || !audible() || context?.state !== 'running') return false;
-    if (trigger !== 'zoom' && (mode !== 'auto' || !present)) return false;
+    if (trigger !== 'zoom' && !continuous && (mode !== 'auto' || !present)) return false;
     if (trigger !== 'zoom' && !settings.enabledFamilies.includes(sample.family)) return false;
     if (voices.size >= settings.maxVoices) return false;
     const previous = history[history.length - 1];
@@ -256,12 +263,12 @@ export function createSoundSystem(ambient, overrides = {}) {
       const strength = observation.strength;
       const acquired = playSample(choose('flow'), .38 + strength * .12, now, 'zoom', { duration: .3 + strength * .12, cutoff: 4700, rate: range([.94, 1.04]) });
       if (acquired) {
-        playSample(choose('detail'), .5 + strength * .12, now, 'zoom', { delay: .08, duration: .24 + strength * .09, cutoff: 6200 });
+        playSample(choose(continuous ? 'micro' : 'detail'), continuous ? .45 : .5 + strength * .12, now, 'zoom', { delay: .04, duration: continuous ? .12 : .24 + strength * .09, cutoff: 6200 });
         lastObservation = now; observation = null;
         nextFlow = Math.max(nextFlow, now + .9); nextDetail = Math.max(nextDetail, now + .9);
       }
     }
-    if (mode !== 'auto' || !present) return;
+    if (!audible() || (!continuous && mode !== 'auto')) return;
     updateActivity(now, dt, inputSpeed);
     if (context?.state !== 'running' || !samples.size) return;
     if (!wasRunning) { resetSchedule(now); wasRunning = true; }
@@ -271,8 +278,8 @@ export function createSoundSystem(ambient, overrides = {}) {
       if (voice.family !== 'detail' || voice.tailChecked || context.currentTime < voice.tailAt) continue;
       voice.tailChecked = true;
       if (context.currentTime >= voice.endAt - .015 || now - lastGlitch < settings.micro.cooldown) continue;
-      if (windowActivity > settings.activity.tailThreshold && activity > settings.activity.tailThreshold &&
-          Math.random() < settings.activity.tailChance * Math.min(1, .3 + activity)) {
+      if ((continuous && Math.random() < .38) || (windowActivity > settings.activity.tailThreshold && activity > settings.activity.tailThreshold &&
+          Math.random() < settings.activity.tailChance * Math.min(1, .3 + activity))) {
         playSample(choose('micro'), settings.micro.gain, now, 'activity-tail');
       }
     }
@@ -313,7 +320,7 @@ export function createSoundSystem(ambient, overrides = {}) {
     notify();
   }
 
-  function setEnabled(value) { setMode(value ? 'auto' : 'muted'); }
+  function setEnabled(value) { setMode(value ? continuous ? 'ambient' : 'auto' : 'muted'); }
 
   function setVolumes(volumes) {
     if (disposed) return;
@@ -378,7 +385,7 @@ export function createSoundSystem(ambient, overrides = {}) {
   const mediaEvents = ['playing', 'waiting', 'stalled', 'pause', 'ended', 'loadedmetadata'];
   function snapshot() {
     return {
-      mode, enabled, disposed, suspended, present, presenceGain, unlocked,
+      mode, continuous, enabled, disposed, suspended, present, presenceGain, unlocked,
       playback, ambientPaused: ambient.paused, ambientMuted: ambient.muted,
       ambientVolume: ambient.volume, manualAmbientVolume: settings.manualAmbientVolume,
       ambientTime: ambient.currentTime, ambientReadyState: ambient.readyState,
@@ -392,8 +399,17 @@ export function createSoundSystem(ambient, overrides = {}) {
   function observe(strength = .5) {
     const now = seconds();
     if (!audible() || now - lastObservation < .8) return;
+    // Give camera acquisition priority over background packets, with a short
+    // release instead of waiting for an unrelated fragment to finish.
+    if (continuous && context) for (const voice of [...voices]) {
+      voice.gain.gain.cancelScheduledValues(context.currentTime);
+      voice.gain.gain.setValueAtTime(voice.gain.gain.value, context.currentTime);
+      voice.gain.gain.linearRampToValueAtTime(0, context.currentTime + .02);
+      try { voice.source.stop(context.currentTime + .025); } catch { /* Already ended. */ }
+      voices.delete(voice);
+    }
     // Keep just the latest camera acquisition; never queue a chorus of clicks.
-    observation = { strength: Math.max(0, Math.min(1, strength)), expires: now + 1.2 };
+    observation = { strength: Math.max(0, Math.min(1, strength)), expires: now + (continuous ? .25 : 1.2) };
   }
   function dispose() {
     if (disposed) return;

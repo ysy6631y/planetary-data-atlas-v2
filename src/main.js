@@ -1390,7 +1390,7 @@ window.__PB_DEBUG__ = {
   graphics: () => ({ type: graphics?.type || 'webgl2', legacy: Boolean(graphics?.legacy), pixelRatio: renderer.getPixelRatio(), width: renderer.domElement.width, height: renderer.domElement.height, cssWidth: width, cssHeight: height, calls: renderer.info.render.calls, antialias: renderer.getContext().getContextAttributes().antialias, qualityScale, strokes: exhibitionLines.snapshot() }),
   navigation: () => ({ scope: selectionScope, boundaryAnchor: groupWorldTarget(selectedGroup).toArray(), fieldAnchor: climate.root.position.toArray() }),
   backgroundMotion: () => ({ starfieldAngle, systemRotationAngle, stars: starPositions.length / 3 }),
-  motion: () => ({ overview, motionPaused, manualObservation, autoRotate: orbit.autoRotate, boundaryAngles: [...boundaryOrbitMotion].map(([id, motion]) => ({ id, angle: motion.angle })), orbitAngles: [...riskOrbits.values()].map((line) => line.userData.angle), reduced: reducedMotion.matches, focusing: !!focusTransition, projection: climate.projectionProgress, points: climate.positions.length }),
+  motion: () => ({ overview, motionPaused, manualObservation, autoRotate: orbit.autoRotate, boundaryAngles: [...boundaryOrbitMotion].map(([id, motion]) => ({ id, angle: motion.angle })), orbitAngles: [...riskOrbits.values()].map((line) => line.userData.angle), reduced: reducedMotion.matches, focusing: !!focusTransition, focusStartedAt: focusTransition?.startedAt ?? null, projection: climate.projectionProgress, points: climate.positions.length }),
   overview: () => ({ active: overview, ready: overviewReady, error: overviewError, fields: [...overviewLayers].map(([boundary, layer]) => ({ boundary, dataset: layer.data.id, observations: layer.data.observations.length, visible: layer.root.visible, sources: layer.data.sources })) }),
   atlas: () => ({ dataset: datasetFull?.id ?? null, error: datasetError, sourceRows: datasetFull?.records.length ?? 0, displayed: datasetFull ? climateField.observations.length : 0, boundary: selectedGroup.id, available: atlasManifest.boundaries[selectedGroup.id].datasets, canSurface: climate.canSurface, kind: datasetFull?.kind ?? null }),
   climate: () => ({ active: climate.active, mode: climate.mode, selected: climate.selectedIndex, positions: climate.positions, projected: climate.projected(camera, width, height) }),
@@ -1470,8 +1470,21 @@ window.__PB_EXPLORATION__ = {
 };
 const heldPointers = new Set();
 const heldKeys = new Set();
+// Public exhibition runs continuously. The explicit developer review URL keeps
+// source inspection available without allowing visitors to interrupt the cycle.
+const continuousExhibition = new URL(location.href).searchParams.get('interaction') !== 'manual';
+document.body.classList.toggle('continuous-exhibition', continuousExhibition);
 function onExhibitionInput(event) {
   if (!event.isTrusted) return;
+  if (continuousExhibition) {
+    if (event.target instanceof Element && event.target.closest('#sound-operator, #exhibition-status, #sound-toggle')) return;
+    if (event.type === 'keydown' || event.type === 'keyup') {
+      if (['0', '1', 'Escape'].includes(event.key) || event.metaKey || event.ctrlKey || event.altKey) return;
+    }
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
   if (event.type === 'pointerdown') heldPointers.add(event.pointerId);
   if (event.type === 'pointerup' || event.type === 'pointercancel') heldPointers.delete(event.pointerId);
   if (event.type === 'keydown') heldKeys.add(event.code);

@@ -19,7 +19,7 @@ export function createPresenceGate(onChange, config = PRESENCE_CONFIG) {
   };
 }
 
-export function createPresenceDetector({ button, status, sound, onState = () => {} }) {
+export function createPresenceDetector({ button, status, sound, onState = () => {}, autoStart = true }) {
   let worker, stream, timer, startupTimer, video, busy = false, active = false, generation = 0, lastResult = 0;
   let disposed = false;
   let detector, backend = null, switching = false;
@@ -134,7 +134,8 @@ export function createPresenceDetector({ button, status, sound, onState = () => 
   button.addEventListener('click', toggle);
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('pagehide', pagehide);
-  void start();
+  if (autoStart) void start();
+  else stop('카메라 대기 · 연속 사운드 사용');
   return { start, stop, snapshot: () => ({ ...cameraState }), dispose() {
     if (disposed) return; disposed = true; stop();
     button.removeEventListener('click', toggle);

@@ -12,8 +12,20 @@ async function dataView(reason) {
 
 async function start() {
   if (mountExhibitionPreview()) return;
-  const alignLayout = () => document.documentElement.style.setProperty('--layout-y', String(Math.min(1.2, Math.max(.65, innerHeight / 1440))));
+  const alignLayout = () => {
+    document.documentElement.style.setProperty('--layout-y', String(Math.min(1.2, Math.max(.65, innerHeight / 1440))));
+    document.documentElement.style.setProperty('--viewport-height', `${innerHeight}px`);
+  };
   alignLayout(); window.addEventListener('resize', alignLayout);
+  window.visualViewport?.addEventListener('resize', alignLayout);
+  let cursorTimer;
+  const showCursor = () => {
+    document.body.classList.remove('exhibition-cursor-hidden');
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(() => document.body.classList.add('exhibition-cursor-hidden'), 3000);
+  };
+  document.addEventListener('pointermove', showCursor, { passive: true });
+  showCursor();
   // Operator audio stays available even if graphics startup falls back to tables.
   mountSoundOperator();
   installIdleHeader();

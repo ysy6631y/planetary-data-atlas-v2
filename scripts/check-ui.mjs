@@ -1,4 +1,4 @@
-const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); return url.href; };
+const contentUrl = value => { const url = new URL(value); url.searchParams.set('stage', 'content'); url.searchParams.set('interaction', 'manual'); return url.href; };
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
