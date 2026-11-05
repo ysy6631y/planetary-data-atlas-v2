@@ -18,11 +18,8 @@ for (const [engine, driver, options] of engines) {
       // Exercise the detector's actual worker-result / hysteresis / sound path.
       // These are controlled face results, not a claim of camera-model accuracy.
       window.__faceRatio = .12;
-      navigator.mediaDevices.getUserMedia = async () => {
-        const stream = new MediaStream();
-        stream.getVideoTracks = () => [{ addEventListener() {} }];
-        return stream;
-      };
+      navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [], getVideoTracks: () => [{ addEventListener() {} }] });
+      Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', { configurable: true, get() { return null; }, set() {} });
       const play = HTMLMediaElement.prototype.play;
       let audioGesture = false;
       window.addEventListener('pointerdown', () => { audioGesture = true; }, true);
